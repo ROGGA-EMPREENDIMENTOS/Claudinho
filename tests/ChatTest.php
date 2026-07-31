@@ -107,6 +107,25 @@ it('monta o seletor de tema com os três estados', function () {
         ->assertSee('currentScript.parentElement', false);
 });
 
+it('não põe a classe dark no mesmo elemento que usa as utilities dark:', function () {
+    $html = Livewire::test(Chat::class)->html();
+
+    // O Tailwind gera `.dark\:bg-gray-900:is(.dark *)` — seletor de ancestral, que não
+    // casa com o próprio elemento. Se a raiz que recebe a classe dark for a mesma que
+    // carrega dark:bg-gray-900, o fundo do card nunca troca, e o header e a área de
+    // conversa herdam o fundo claro dele. Foi exatamente esse o bug.
+    $posEfeito = strpos($html, 'x-effect=');
+    $tagRaiz = substr($html, 0, strpos($html, '>', $posEfeito));
+
+    expect($tagRaiz)
+        ->toContain('x-effect')
+        ->not->toContain('dark:bg-')
+        ->not->toContain('dark:border-');
+
+    // E o card, agora descendente, segue com as classes.
+    expect($html)->toContain('dark:bg-gray-900');
+});
+
 it('aplica o tema no documento quando configurado assim', function () {
     config()->set('claudinho.tema.alvo', 'documento');
 

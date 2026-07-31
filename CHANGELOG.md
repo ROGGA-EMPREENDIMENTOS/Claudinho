@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.0.1
+
+### Corrigido
+
+- O tema escuro não trocava o fundo do card, o header nem a área de conversa. A classe
+  `dark` estava no mesmo elemento que carrega `dark:bg-gray-900`, e o Tailwind gera
+  `.dark\:bg-gray-900:is(.dark *)` — seletor de ancestral, que não casa com o próprio
+  elemento. As bolhas e o textarea escureciam (são descendentes), mas o card seguia
+  `bg-white`, e header e área de conversa herdam o fundo dele. A raiz do componente passou
+  a ser um div só de tema, com o card como descendente.
+
 ## v1.0.0
 
 Sai do `0.x`. Não é uma promessa de estabilidade de API — o pacote ainda está em evolução e
