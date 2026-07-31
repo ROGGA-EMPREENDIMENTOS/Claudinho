@@ -71,6 +71,24 @@ return [
     // ficar só com o título, sem depender dos PNGs publicados.
     'logo' => true,
 
+    'tema' => [
+
+        // Botão no header que alterna sistema → claro → escuro. Deixe false se a
+        // aplicação já tem o próprio seletor de tema, para não haver dois.
+        'seletor' => true,
+
+        // Onde a classe `dark` é aplicada:
+        //
+        //   'componente' — só no card do chat. É o padrão porque funciona em
+        //                  qualquer aplicação, inclusive nas que não têm tema
+        //                  escuro próprio: o resto da página não muda.
+        //   'documento'  — no <html>, alternando a aplicação inteira. Use quando
+        //                  a aplicação já tem tema escuro em todas as telas,
+        //                  senão o chat escurece sozinho no meio de uma página clara.
+        'alvo' => 'componente',
+
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Conversa

@@ -95,8 +95,29 @@ o modelo de produção sozinho.
 
 ## Tema claro e escuro
 
-O chat acompanha o tema da aplicação pelas variantes `dark:` — vale para `darkMode: 'media'`
-e para `darkMode: 'class'`, sem configuração extra no pacote. O logo tem quatro arquivos
+O botão no header alterna entre três estados: **seguindo o sistema** → **claro** → **escuro**.
+Ciclar em vez de alternar entre dois é o que permite voltar a seguir o sistema depois de uma
+escolha manual. A escolha fica no `localStorage` (chave `claudinho-tema`), por navegador.
+
+Onde a classe `dark` é aplicada depende de `tema.alvo`:
+
+- **`componente`** (padrão) — só no card do chat. Funciona em qualquer aplicação, inclusive
+  nas que não têm tema escuro próprio: o resto da página não muda.
+- **`documento`** — no `<html>`, alternando a aplicação inteira. Use quando **todas** as
+  telas já têm tema escuro; caso contrário o chat escurece sozinho no meio de uma página clara.
+
+Se a aplicação já tem seletor de tema próprio, ponha `tema.seletor => false` para não ficarem
+dois. O `x-effect` continua ativo nesse caso, então quem já havia escolhido não perde a escolha.
+
+Tem um `<script>` inline no topo do componente que aplica a classe durante o parse do HTML,
+antes do primeiro paint. Sem ele, quem escolheu escuro vê um lampejo claro até o Alpine
+inicializar. O pacote não consegue injetar no `<head>` da aplicação, então essa é a janela
+mais cedo disponível — resolve o flash do chat, não o da página acima dele.
+
+As classes `dark:` funcionam com `darkMode: 'media'` e `'class'`: o Tailwind gera um seletor
+de ancestral (`:is(.dark *)`), que casa tanto com o `<html>` quanto com o card do chat.
+
+O logo tem quatro arquivos
 porque PNG tem cor fixa: tinta sobre fundo claro, creme sobre fundo escuro, e em cada tema
 a assinatura completa de `sm` para cima contra a marca sozinha em telas estreitas.
 

@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.0.0
+
+Primeira versão estável. O escopo do pacote está fechado e a API pública — config, nomes de
+componente Livewire, tags de publish, contrato da `Ferramenta` — passa a seguir semver: quebra
+só em major.
+
+Quem está na v0.2.0 pode subir trocando a constraint para `^1.0`; não há nada a migrar.
+Vindo da v0.1.x, os passos da seção abaixo continuam valendo.
+
+### Adicionado
+
+- **Seletor de tema no header** — cicla entre seguindo o sistema → claro → escuro, com a
+  escolha no `localStorage`. Um `<script>` inline aplica a classe durante o parse do HTML,
+  antes do primeiro paint, para quem escolheu escuro não ver um lampejo claro.
+- `tema.alvo` decide onde a classe `dark` entra: `componente` (padrão, só o card do chat —
+  funciona mesmo em aplicação sem tema escuro próprio) ou `documento` (o `<html>`, para
+  aplicação que já tem tema escuro em todas as telas).
+- `tema.seletor => false` esconde o botão para quem já tem seletor próprio, sem desligar o
+  tema — quem havia escolhido antes não perde a escolha.
+
 ## v0.2.0
 
 ### Atualizando da v0.1.x

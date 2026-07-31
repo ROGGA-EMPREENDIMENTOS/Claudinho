@@ -1,6 +1,46 @@
 {{-- Ícones em SVG inline de propósito: o pacote não deve exigir blade-heroicons na aplicação. --}}
-<div
+@php($temaNoDocumento = config('claudinho.tema.alvo', 'componente') === 'documento')
+
+<div x-data="{
+    tema: localStorage.getItem('claudinho-tema') || 'sistema',
+    sistemaEscuro: window.matchMedia('(prefers-color-scheme: dark)').matches,
+
+    init() {
+        // Tema do sistema pode mudar com a página aberta; matchMedia não é reativo.
+        window.matchMedia('(prefers-color-scheme: dark)')
+            .addEventListener('change', evento => this.sistemaEscuro = evento.matches);
+    },
+
+    get escuro() {
+        return this.tema === 'escuro' || (this.tema === 'sistema' && this.sistemaEscuro);
+    },
+
+    alternar() {
+        this.tema = { sistema: 'claro', claro: 'escuro', escuro: 'sistema' }[this.tema];
+        localStorage.setItem('claudinho-tema', this.tema);
+    },
+}"
+    {{-- x-effect reage ao getter escuro, que depende de tema e sistemaEscuro. --}}
+    x-effect="{{ $temaNoDocumento ? 'document.documentElement' : '$el' }}.classList.toggle('dark', escuro)"
     class="flex flex-col w-full max-w-4xl mx-auto bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-900 dark:border-gray-800">
+    {{-- Roda durante o parse, antes do primeiro paint: sem isso quem escolheu escuro
+         vê um lampejo claro até o Alpine inicializar. O x-effect assume daqui. --}}
+    <script>
+        (() => {
+            const escolhido = localStorage.getItem('claudinho-tema') || 'sistema';
+            const escuro = escolhido === 'escuro'
+                || (escolhido === 'sistema' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+            if (escuro) {
+                @if ($temaNoDocumento)
+                    document.documentElement.classList.add('dark');
+                @else
+                    document.currentScript.parentElement.classList.add('dark');
+                @endif
+            }
+        })();
+    </script>
+
     <section class="flex items-center justify-between gap-3 px-4 py-2 border-b border-gray-100 dark:border-gray-800">
         <span class="flex items-center min-w-0 gap-2.5">
             @if (config('claudinho.logo', true))
@@ -15,6 +55,34 @@
         </span>
 
         <span class="flex items-center gap-2 shrink-0">
+            @if (config('claudinho.tema.seletor', true))
+                {{-- Três estados num botão só: o ícone mostra o atual, o title diz o próximo.
+                     Ciclar (em vez de alternar entre dois) é o que preserva o "seguir o
+                     sistema" depois de uma escolha manual. --}}
+                <button type="button" x-on:click="alternar()"
+                    x-bind:title="{ sistema: 'Tema: seguindo o sistema. Clique para claro.', claro: 'Tema: claro. Clique para escuro.', escuro: 'Tema: escuro. Clique para seguir o sistema.' }[tema]"
+                    x-bind:aria-label="{ sistema: 'Tema seguindo o sistema', claro: 'Tema claro', escuro: 'Tema escuro' }[tema]"
+                    class="inline-flex items-center justify-center w-8 h-8 text-gray-500 transition bg-white border border-gray-300 rounded-md shrink-0 hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1 dark:text-gray-400 dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-white dark:focus:ring-offset-gray-900">
+                    <svg x-show="tema === 'sistema'" style="display: none" class="w-4 h-4 shrink-0" fill="none"
+                        viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25A2.25 2.25 0 0 1 5.25 3h13.5A2.25 2.25 0 0 1 21 5.25Z" />
+                    </svg>
+
+                    <svg x-show="tema === 'claro'" style="display: none" class="w-4 h-4 shrink-0" fill="none"
+                        viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+                    </svg>
+
+                    <svg x-show="tema === 'escuro'" style="display: none" class="w-4 h-4 shrink-0" fill="none"
+                        viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                    </svg>
+                </button>
+            @endif
+
             @if ($this->temConversa())
                 <button type="button" wire:click="limpar" wire:confirm="Limpar toda a conversa?"
                     title="Apaga o histórico desta conversa"

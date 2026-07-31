@@ -94,6 +94,36 @@ it('esconde a engrenagem quando permissao_admin exige gate e ninguém está loga
         ->assertDontSee('Configurações do Claudinho');
 });
 
+it('monta o seletor de tema com os três estados', function () {
+    $componente = Livewire::test(Chat::class);
+
+    $componente
+        ->assertSee('x-on:click="alternar()"', false)
+        ->assertSee("tema === 'sistema'", false)
+        ->assertSee("tema === 'claro'", false)
+        ->assertSee("tema === 'escuro'", false)
+        // Sem o script inline quem escolheu escuro vê um lampejo claro na carga.
+        ->assertSee('claudinho-tema', false)
+        ->assertSee('currentScript.parentElement', false);
+});
+
+it('aplica o tema no documento quando configurado assim', function () {
+    config()->set('claudinho.tema.alvo', 'documento');
+
+    Livewire::test(Chat::class)
+        ->assertSee('document.documentElement.classList.toggle', false)
+        ->assertDontSee('currentScript.parentElement', false);
+});
+
+it('esconde o seletor de tema quando a aplicação tem o próprio', function () {
+    config()->set('claudinho.tema.seletor', false);
+
+    Livewire::test(Chat::class)
+        ->assertDontSee('x-on:click="alternar()"', false)
+        // O x-effect continua: quem já escolheu antes não perde a escolha.
+        ->assertSee("classList.toggle('dark', escuro)", false);
+});
+
 it('renderiza as variantes dark do container e das bolhas', function () {
     $componente = Livewire::test(Chat::class);
 
