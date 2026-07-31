@@ -10,6 +10,7 @@ use Rogga\Claudinho\ClaudinhoServiceProvider;
 
 abstract class TestCase extends Orchestra
 {
+
     protected function getPackageProviders($app): array
     {
         return [
@@ -20,6 +21,9 @@ abstract class TestCase extends Orchestra
 
     protected function defineEnvironment($app): void
     {
+        // Livewire assina o payload do componente: sem chave, qualquer render explode.
+        $app['config']->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
+
         $app['config']->set('claudinho.api_key', 'fake-key');
         $app['config']->set('claudinho.model', 'claude-opus-5');
         $app['config']->set('claudinho.max_tokens', 16000);

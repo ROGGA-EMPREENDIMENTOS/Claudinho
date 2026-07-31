@@ -230,6 +230,17 @@ class Chat extends Component
     }
 
     /**
+     * Gate da engrenagem. Só decide se o botão e o componente de configurações
+     * aparecem — quem barra a ação é o próprio componente, a cada chamada.
+     */
+    public function podeAdministrar(): bool
+    {
+        $permissao = config('claudinho.permissao_admin', 'claudinho_admin');
+
+        return blank($permissao) || (bool) Auth::user()?->can($permissao);
+    }
+
+    /**
      * html_input strip é obrigatório: a resposta do modelo carrega dados vindos do
      * banco e não pode virar HTML executável.
      */

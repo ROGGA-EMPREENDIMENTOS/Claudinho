@@ -10,6 +10,7 @@ use Livewire\Livewire;
 use Rogga\Claudinho\Contracts\Ferramenta;
 use Rogga\Claudinho\Ferramentas\GerarGrafico;
 use Rogga\Claudinho\Livewire\Chat;
+use Rogga\Claudinho\Livewire\Configuracoes;
 use Rogga\Claudinho\View\Components\Grafico;
 
 class ClaudinhoServiceProvider extends ServiceProvider
@@ -40,8 +41,10 @@ class ClaudinhoServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'claudinho');
+        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
         Livewire::component('claudinho.chat', Chat::class);
+        Livewire::component('claudinho.configuracoes', Configuracoes::class);
         Blade::component('claudinho::grafico', Grafico::class);
 
         if ($this->app->runningInConsole()) {
@@ -52,6 +55,12 @@ class ClaudinhoServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/../resources/views' => resource_path('views/vendor/claudinho'),
             ], 'claudinho-views');
+
+            // O logo é PNG servido pelo webserver, não asset compilado: sem este publish
+            // o header aparece com imagem quebrada. Republicar a cada update do pacote.
+            $this->publishes([
+                __DIR__.'/../resources/images' => public_path('vendor/claudinho'),
+            ], 'claudinho-assets');
         }
     }
 }

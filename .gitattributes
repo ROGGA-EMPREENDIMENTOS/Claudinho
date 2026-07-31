@@ -1,0 +1,7 @@
+# Fora do dist do Composer: originais do logo e ferramentas de dev.
+/art             export-ignore
+/tests           export-ignore
+/phpunit.xml     export-ignore
+/.gitattributes  export-ignore
+/.gitignore      export-ignore
+/pint.json       export-ignore

@@ -16,24 +16,98 @@ consultas do seu sistema — e o pacote garante que o modelo só veja o que o us
 - **Markdown sanitizado** — tabela e lista renderizam; `<script>` e `javascript:` são removidos.
 - **Gráfico de barras em SVG** — gerado no servidor a partir de dados tipados. O modelo
   nunca emite HTML.
+- **Configuração em tela** — modelo e chave da API pela engrenagem do header, atrás de gate
+  próprio. A chave vai criptografada no banco e nunca volta para o navegador.
+- **Tema claro e escuro** — acompanha o da aplicação pelas variantes `dark:`, sem
+  configuração extra no pacote.
 
 ## Instalação
 
 ```bash
 composer require rogga/claudinho
 php artisan vendor:publish --tag=claudinho-config
+php artisan vendor:publish --tag=claudinho-assets   # logo do header
+php artisan migrate                                 # tabela de configurações
 ```
+
+O `claudinho-assets` copia os PNGs do logo para `public/vendor/claudinho`. Sem ele o header
+aparece com imagem quebrada — ou defina `'logo' => false` no config para exibir só o título.
+Como é arquivo em `public/`, republique a cada `composer update` do pacote (vale colocar
+`@php artisan vendor:publish --tag=claudinho-assets --force` no `post-update-cmd`).
 
 No `.env`:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-api03-...
-ANTHROPIC_MODEL=claude-opus-5      # ou claude-sonnet-5, mais barato
-CLAUDINHO_PERMISSAO=use_assistente # opcional: gate para abrir o chat
+ANTHROPIC_MODEL=claude-sonnet-5           # padrão; ou claude-opus-5, mais capaz e mais caro
+CLAUDINHO_PERMISSAO=use_assistente        # opcional: gate para abrir o chat
+CLAUDINHO_PERMISSAO_ADMIN=claudinho_admin # gate da engrenagem de configurações
 ```
+
+Chave e modelo também dão para configurar em tela — ver a seção seguinte. O `.env` continua
+valendo como fallback: é de lá que sai o valor enquanto nada foi gravado pela engrenagem.
 
 Requisitos do lado da aplicação: Livewire 3+ e, para as tabelas do markdown saírem
 estilizadas, o plugin `@tailwindcss/typography`. Sem ele o conteúdo aparece, só sem estilo.
+
+As classes do chat são compiladas pelo Tailwind da aplicação, então inclua as views do
+pacote no `content`:
+
+```js
+// tailwind.config.js
+content: [
+    './vendor/rogga/claudinho/resources/views/**/*.blade.php',
+    // ...
+],
+```
+
+## Configurações em tela
+
+A engrenagem no header abre um modal onde dá para trocar **modelo** e **chave da API** sem
+deploy. Aparece só para quem passa no gate `permissao_admin` (padrão `claudinho_admin`).
+
+A precedência é: o que foi gravado em tela vence o `config`/`.env`; valor vazio em tela cai
+no `.env` de novo — é o que o botão *Limpar* faz. Assim um ambiente pode continuar 100%
+configurado por variável de ambiente, sem nunca abrir a engrenagem.
+
+O que a tela **não** faz, de propósito:
+
+- **Não devolve a chave gravada.** Propriedade pública do Livewire vai para o HTML e volta em
+  cada requisição, então o campo é só de escrita. O que aparece é uma máscara
+  (`sk-ant-a••••••••1b2c`) para confirmar qual chave está valendo.
+- **Não valida a chave contra a API.** Chave errada só aparece na primeira pergunta, como
+  erro vindo da Anthropic. Se quiser um botão *Testar conexão*, é um `GET /v1/models` — não
+  está incluído.
+
+A chave vai criptografada no banco, com a `APP_KEY`. Duas consequências práticas: rotacionar
+a `APP_KEY` sem re-encriptar torna o valor gravado indecifrável, e o pacote trata isso como
+*chave ausente* — volta a usar o `.env` e a engrenagem permite regravar, em vez de derrubar o
+chat com erro de criptografia. E backup de banco sem a `APP_KEY` não restaura a chave.
+
+O modelo em uso é lido do banco a cada resposta, sem cache: o valor decifrado da chave não
+deve ir para o cache store, que costuma ser menos protegido que o banco. São duas consultas
+leves por resposta — não por render de tela. Sem migration rodada, sem driver de banco ou
+sem conexão, tudo cai no `.env` em silêncio, e o chat continua funcionando.
+
+O select de modelos vem de `config('claudinho.modelos')` — é só a lista da UI, edite à
+vontade. Um modelo gravado que saiu da lista continua selecionável, para o select não trocar
+o modelo de produção sozinho.
+
+## Tema claro e escuro
+
+O chat acompanha o tema da aplicação pelas variantes `dark:` — vale para `darkMode: 'media'`
+e para `darkMode: 'class'`, sem configuração extra no pacote. O logo tem quatro arquivos
+porque PNG tem cor fixa: tinta sobre fundo claro, creme sobre fundo escuro, e em cada tema
+a assinatura completa de `sm` para cima contra a marca sozinha em telas estreitas.
+
+| | claro | escuro |
+|---|---|---|
+| até `sm` | `claudinho-icone-claro.png` | `claudinho-icone-escuro.png` |
+| `sm` + | `claudinho-lockup-claro.png` | `claudinho-lockup-escuro.png` |
+
+Para trocar a arte, sobrescreva esses quatro nomes em `resources/images/` do pacote (ou
+publique as views com `--tag=claudinho-views` e edite `components/logo.blade.php`). Os
+originais em alta ficam em `art/`.
 
 ## Colocando na tela
 
@@ -181,12 +255,24 @@ Ao trocar `grafico.cor`, valide a cor contra a superfície onde o gráfico é re
 - **Escrita.** Todas as ferramentas são de leitura. Ação com efeito colateral pede
   confirmação explícita na UI, que é responsabilidade da aplicação.
 - **Aprender sozinho.** Ver a seção do glossário.
+- **Acessar a web.** Nenhuma tool de busca, fetch de URL ou maps é declarada — todo o
+  contexto que entra vem do banco da sua aplicação. Consequência prática: as regras
+  anti-invenção do system prompt são escopadas a **registros**, então para pergunta de
+  conhecimento geral (um CNPJ, uma norma técnica, uma distância) o modelo pode responder
+  da memória de treinamento, que tem data de corte. Se isso importa no seu caso, diga no
+  `contexto` para ele avisar quando estiver fora dos dados do sistema.
 
 ## Custo
 
 O breakpoint de cache fica no system prompt, o que cobre também as definições de ferramenta.
 A partir da segunda mensagem da conversa, esse prefixo custa ~10%. O histórico é limitado a
 20 mensagens (`limite_historico`) e cada consulta a 25 linhas por padrão.
+
+Um detalhe do cache que vale saber: em `claude-sonnet-5` o prefixo mínimo cacheável é de
+1024 tokens (em `claude-opus-5` são 512). Abaixo disso o cache simplesmente não é criado,
+sem erro nenhum — o sintoma é `cache_read_input_tokens` sempre em zero. Com ferramentas
+registradas e glossário preenchido o prefixo passa disso com folga; numa instalação recém
+publicada, com `contexto` de uma linha e nenhuma ferramenta, pode não passar.
 
 ## Testes
 

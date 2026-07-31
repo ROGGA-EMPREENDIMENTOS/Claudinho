@@ -9,6 +9,7 @@ use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Rogga\Claudinho\Models\Configuracao;
 use RuntimeException;
 use stdClass;
 
@@ -34,8 +35,9 @@ class Claude
 
     public function __construct()
     {
-        $this->apiKey = config('claudinho.api_key');
-        $this->model = config('claudinho.model');
+        // O que foi definido em tela vence o config/env; vazio na tela cai no env.
+        $this->apiKey = Configuracao::valor('api_key', config('claudinho.api_key'));
+        $this->model = (string) Configuracao::valor('model', config('claudinho.model'));
         $this->maxTokens = (int) config('claudinho.max_tokens');
         $this->effort = config('claudinho.effort');
         $this->timeout = (int) config('claudinho.timeout');

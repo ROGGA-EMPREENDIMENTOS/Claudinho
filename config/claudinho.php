@@ -16,7 +16,18 @@ return [
 
     'api_key' => env('ANTHROPIC_API_KEY'),
 
-    'model' => env('ANTHROPIC_MODEL', 'claude-opus-5'),
+    // Sonnet 5 entrega qualidade próxima de Opus em coding e uso de ferramentas
+    // por ~40% do custo. Troque por claude-opus-5 se o glossário crescer ao ponto
+    // de exigir raciocínio mais profundo sobre as regras de negócio.
+    'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-5'),
+
+    // Opções oferecidas no select da tela de configurações. É só a lista da UI: o
+    // modelo em uso é o gravado em tela, ou este 'model' acima como fallback.
+    'modelos' => [
+        'claude-sonnet-5' => 'Sonnet 5 — padrão: melhor equilíbrio custo/capacidade',
+        'claude-opus-5' => 'Opus 5 — mais capaz em raciocínio, custo mais alto',
+        'claude-haiku-4-5' => 'Haiku 4.5 — mais rápido e barato, para perguntas simples',
+    ],
 
     'max_tokens' => env('ANTHROPIC_MAX_TOKENS', 16000),
 
@@ -37,6 +48,28 @@ return [
     */
 
     'permissao' => env('CLAUDINHO_PERMISSAO'),
+
+    // Gate exigido para abrir a engrenagem e alterar modelo/chave da API em tela.
+    // null libera para qualquer usuário autenticado — em produção, defina.
+    'permissao_admin' => env('CLAUDINHO_PERMISSAO_ADMIN', 'claudinho_admin'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Aparência
+    |--------------------------------------------------------------------------
+    |
+    | O chat acompanha o tema da aplicação pelas variantes dark: do Tailwind —
+    | funciona tanto com darkMode 'media' quanto 'class'.
+    |
+    */
+
+    'titulo' => 'Assistente de IA',
+
+    'placeholder_vazio' => 'Faça uma pergunta para começar.',
+
+    // Exige `vendor:publish --tag=claudinho-assets`. Deixe false para o header
+    // ficar só com o título, sem depender dos PNGs publicados.
+    'logo' => true,
 
     /*
     |--------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 <figure class="my-3 not-prose">
-    <figcaption class="mb-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
+    <figcaption class="mb-2 text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
         {{ $titulo }}
     </figcaption>
 
@@ -12,15 +12,16 @@
 
             @if ($tipo === 'barra')
                 <text x="{{ $barra['rotulo_x'] }}" y="{{ $barra['rotulo_y'] }}" text-anchor="middle"
-                    font-size="10" fill="#6b7280">{{ $barra['rotulo'] }}</text>
+                    font-size="10" class="fill-gray-500 dark:fill-gray-400">{{ $barra['rotulo'] }}</text>
                 <text x="{{ $barra['valor_x'] }}" y="{{ $barra['valor_y'] }}" text-anchor="middle"
-                    font-size="11" font-weight="500" fill="#374151"
+                    font-size="11" font-weight="500" class="fill-gray-700 dark:fill-gray-200"
                     style="font-variant-numeric: tabular-nums">{{ $barra['valor'] }}</text>
             @else
                 <text x="{{ $barra['rotulo_x'] }}" y="{{ $barra['rotulo_y'] }}" text-anchor="end"
-                    dominant-baseline="middle" font-size="11" fill="#6b7280">{{ $barra['rotulo'] }}</text>
+                    dominant-baseline="middle" font-size="11"
+                    class="fill-gray-500 dark:fill-gray-400">{{ $barra['rotulo'] }}</text>
                 <text x="{{ $barra['valor_x'] }}" y="{{ $barra['valor_y'] }}" dominant-baseline="middle"
-                    font-size="11" font-weight="500" fill="#374151"
+                    font-size="11" font-weight="500" class="fill-gray-700 dark:fill-gray-200"
                     style="font-variant-numeric: tabular-nums">{{ $barra['valor'] }}</text>
             @endif
         @endforeach
