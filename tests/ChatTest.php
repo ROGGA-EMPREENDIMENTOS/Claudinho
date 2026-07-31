@@ -107,6 +107,16 @@ it('monta o seletor de tema com os três estados', function () {
         ->assertSee('currentScript.parentElement', false);
 });
 
+it('repõe a classe do tema depois do morph do Livewire', function () {
+    Livewire::test(Chat::class)
+        // O morph ressincroniza os atributos da raiz a partir do HTML do servidor, que não
+        // conhece a escolha do usuário. Sem o observer, mandar uma mensagem apagava a classe
+        // e o chat voltava para o claro — só no tema escuro, porque no claro não há classe
+        // para perder. O attributeFilter é o que distingue este observer do do auto-scroll.
+        ->assertSee("attributeFilter: ['class']", false)
+        ->assertSee('classList.contains(\'dark\') !== escuro()', false);
+});
+
 it('não põe a classe dark no mesmo elemento que usa as utilities dark:', function () {
     $html = Livewire::test(Chat::class)->html();
 

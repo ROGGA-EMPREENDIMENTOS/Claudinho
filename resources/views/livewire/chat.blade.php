@@ -24,17 +24,35 @@
     x-effect="{{ $temaNoDocumento ? 'document.documentElement' : '$el' }}.classList.toggle('dark', escuro)">
     <script>
         (() => {
-            const escolhido = localStorage.getItem('claudinho-tema') || 'sistema';
-            const escuro = escolhido === 'escuro'
-                || (escolhido === 'sistema' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            @if ($temaNoDocumento)
+                const alvo = document.documentElement;
+            @else
+                const alvo = document.currentScript.parentElement;
+            @endif
 
-            if (escuro) {
-                @if ($temaNoDocumento)
-                    document.documentElement.classList.add('dark');
-                @else
-                    document.currentScript.parentElement.classList.add('dark');
-                @endif
-            }
+            const escuro = () => {
+                const escolhido = localStorage.getItem('claudinho-tema') || 'sistema';
+
+                return escolhido === 'escuro'
+                    || (escolhido === 'sistema' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            };
+
+            const aplicar = () => alvo.classList.toggle('dark', escuro());
+
+            aplicar();
+
+            // O morph do Livewire ressincroniza os atributos da raiz a partir do HTML do
+            // servidor, que não conhece a escolha do usuário — sem isto, mandar uma mensagem
+            // apaga a classe e o chat volta para o claro. Observar o atributo em vez de usar
+            // hook do Livewire porque os nomes de hook mudam entre a v3 e a v4, e o pacote
+            // suporta as duas. O callback roda como microtask, antes do paint, então a
+            // reposição não pisca. Comparar antes de aplicar é o que evita laço com a
+            // própria alteração.
+            new MutationObserver(() => {
+                if (alvo.classList.contains('dark') !== escuro()) {
+                    aplicar();
+                }
+            }).observe(alvo, { attributes: true, attributeFilter: ['class'] });
         })();
     </script>
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.0.2
+
+### Corrigido
+
+- Mandar uma mensagem devolvia o chat para o tema claro. O morph do Livewire ressincroniza
+  os atributos da raiz a partir do HTML do servidor, que não conhece a escolha do usuário —
+  então a classe `dark`, aplicada no cliente, era apagada a cada requisição. Só aparecia no
+  tema escuro, porque no claro não há classe para perder. Um `MutationObserver` no atributo
+  `class` repõe a classe; observar o atributo em vez de usar hook do Livewire porque os nomes
+  de hook mudam entre a v3 e a v4 e o pacote suporta as duas.
+
 ## v1.0.1
 
 ### Corrigido
