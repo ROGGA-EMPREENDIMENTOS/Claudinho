@@ -2,9 +2,8 @@
 
 ## v1.0.0
 
-Primeira versão estável. O escopo do pacote está fechado e a API pública — config, nomes de
-componente Livewire, tags de publish, contrato da `Ferramenta` — passa a seguir semver: quebra
-só em major.
+Sai do `0.x`. Não é uma promessa de estabilidade de API — o pacote ainda está em evolução e
+mudança incompatível pode acontecer em minor; leia o changelog antes de subir de versão.
 
 Quem está na v0.2.0 pode subir trocando a constraint para `^1.0`; não há nada a migrar.
 Vindo da v0.1.x, os passos da seção abaixo continuam valendo.
