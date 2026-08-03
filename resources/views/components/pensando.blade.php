@@ -68,22 +68,9 @@
 </style>
 
 <span {{ $attributes->merge(['class' => 'inline-flex shrink-0']) }}>
-    <svg viewBox="0 0 296 373" class="{{ $altura }} w-auto overflow-visible" aria-hidden="true">
-        {{-- Antenas antes da cabeça: é a cabeça que esconde a base delas. --}}
-        <g stroke="#d3754c" stroke-width="20" stroke-linecap="round">
-            <line class="claudinho-cabelo claudinho-cabelo--esq" x1="94" y1="31.21" x2="118.81" y2="90" />
-            <line class="claudinho-cabelo claudinho-cabelo--meio" x1="145.5" y1="10" x2="145.5" y2="90" />
-            <line class="claudinho-cabelo claudinho-cabelo--dir" x1="197" y1="31.21" x2="172.19" y2="90" />
-        </g>
-
-        <g class="fill-[#191512] dark:fill-[#f2ece1]">
-            <rect x="0" y="72" width="296" height="256" rx="88" />
-            <path d="M73,280 L46.3,340.5 A14,14 0 0 0 56.2,359.9 L112.9,371.9 L167.45,280 Z" />
-        </g>
-
-        <circle class="claudinho-olho fill-[#d3754c]" cx="105.5" cy="201.5" r="26" />
-        <circle class="claudinho-olho fill-[#f2ece1] dark:fill-[#120f0c]" cx="193.5" cy="201.5" r="26" />
-    </svg>
+    {{-- A geometria vive na marca; aqui entra só o que é animação. As classes que o
+         <style> acima persegue vêm do `animado`. --}}
+    <x-claudinho::marca :altura="$altura" animado />
 
     <span class="sr-only">Claudinho está respondendo</span>
 </span>

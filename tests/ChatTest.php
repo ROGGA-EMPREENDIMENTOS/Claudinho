@@ -178,6 +178,58 @@ it('monta o botão e o painel quando flutuante', function () {
         ->assertSee('sm:right-6', false);
 });
 
+it('usa a marca do Claudinho no botão flutuante, não um ícone genérico', function () {
+    $componente = Livewire::test(Chat::class, ['flutuante' => true]);
+
+    $componente
+        // Cores da marca, e SVG inline: o botão não pode depender do publish dos PNGs.
+        ->assertSee('#d3754c', false)
+        ->assertSee('fill-[#191512] dark:fill-[#f2ece1]', false)
+        ->assertSee('viewBox="0 0 296 373"', false)
+        // A bolha de fala genérica do heroicons saiu de cena.
+        ->assertDontSee('M12 20.25c4.97 0', false);
+});
+
+it('não deixa a marca do botão herdar a animação do pensando', function () {
+    // O <style> do pensando é global. Se a marca do botão carregasse as classes dele,
+    // ela piscaria os dois olhos e balançaria o cabelo junto, num canto fixo da tela,
+    // a cada resposta. A piscadela discreta do botão é OUTRA classe, com keyframes
+    // próprio e ciclo longo — por isso o guarda mira as classes do pensando, e não
+    // qualquer `claudinho-*`.
+    $html = Livewire::test(Chat::class, ['flutuante' => true])
+        ->set('pergunta', 'quantas obras ativas?')
+        ->call('enviar')
+        ->html();
+
+    $documento = new DOMDocument;
+    @$documento->loadHTML($html);
+    $xpath = new DOMXPath($documento);
+
+    // Sem dois-pontos no nome do atributo: em XPath eles viram prefixo de namespace.
+    $lancador = $xpath->query('//button[@x-show="! aberto"]')->item(0);
+
+    expect($lancador)->not->toBeNull()
+        ->and($xpath->query('.//svg', $lancador)->length)->toBeGreaterThan(0)
+        // Nenhuma das duas classes que o keyframes do pensando persegue.
+        ->and($xpath->query('.//*[contains(@class, "claudinho-cabelo")]', $lancador)->length)->toBe(0)
+        ->and($xpath->query('.//*[contains(@class, "claudinho-olho")]', $lancador)->length)->toBe(0)
+        // E a piscadela própria do botão está lá, num olho só.
+        ->and($xpath->query('.//*[contains(@class, "claudinho-piscada")]', $lancador)->length)->toBe(1);
+
+    // O pensando, esse sim, segue com a animação completa.
+    expect($html)->toContain('claudinho-cabelo--esq')->toContain('claudinho-olho');
+});
+
+it('acompanha a piscadela do botão com o keyframes e o respeito a reduced-motion', function () {
+    $html = Livewire::test(Chat::class, ['flutuante' => true])->html();
+
+    // Classe sem keyframes é animação que não acontece; e movimento perpétuo num canto
+    // da tela precisa de saída para quem pede menos movimento.
+    expect($html)
+        ->toContain('@keyframes claudinho-piscada')
+        ->toContain('prefers-reduced-motion');
+});
+
 it('deixa o painel abaixo do modal de configurações', function () {
     config()->set('claudinho.permissao_admin', null);
 

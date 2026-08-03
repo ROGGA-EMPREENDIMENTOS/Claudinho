@@ -18,6 +18,20 @@
     página para reler algo não é intenção de sair.
   - `flutuante.posicao`, `flutuante.rotulo` e `flutuante.aberto` no config, só aparência.
   - A aplicação abre o chat de onde quiser com `$dispatch('claudinho-abrir')`.
+  - O botão traz **a marca do Claudinho**, não um ícone de bolha genérico. Em SVG inline
+    para não depender do publish dos PNGs — imagem quebrada no elemento mais visível do
+    modo seria pior que ícone genérico. A superfície do botão é neutra (branco/gray-900 com
+    anel sky) em vez do `sky-600` do botão de enviar: a marca tem três cores próprias e foi
+    desenhada para fundo claro ou creme, e sobre azul saturado só a cabeça leria bem.
+  - E ela **pisca**: um olho só, a cada 8s, com keyframes próprio (`claudinho-piscada`).
+    O ciclo é longo e a piscada curta de propósito — é o intervalo parado que separa
+    "tem alguém aí" de ruído permanente num canto fixo da tela. Some com
+    `prefers-reduced-motion`.
+- Componente `x-claudinho::marca`: a geometria da marca, que antes vivia dentro do
+  `pensando`, agora existe num lugar só. O `pensando` passou a ser essa marca mais as
+  animações, via `animado`; o botão flutuante usa `piscando`. As duas flags são separadas
+  porque os `<style>` são globais — misturá-las faria a marca do botão balançar o cabelo
+  junto sempre que houvesse um "pensando" em cena.
   - O gate `claudinho.permissao` **não** foi relaxado: num layout global o include precisa
     vir dentro de `@can`, senão quem não tem a permissão toma 403 em toda página. Renderizar
     nada em silêncio esconderia o assistente de todos ao menor erro no nome da permissão.

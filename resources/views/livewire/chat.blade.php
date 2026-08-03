@@ -114,18 +114,53 @@
 
             {{-- Escondido enquanto aberto: no mobile o painel cobre a tela e o botão
                  ficaria flutuando sobre a conversa. Para fechar há o X e o Esc. --}}
+            {{-- Superfície neutra, e não o sky-600 do botão de enviar: a marca tem três
+                 cores próprias e foi desenhada para fundo claro ou creme. Sobre azul
+                 saturado só a cabeça leria bem, e as antenas terracota brigariam — seria
+                 recolorir a marca. O anel sky devolve a proeminência que a cor daria. --}}
+            {{-- Fora do <button> porque style não é conteúdo de frase válido — mesmo
+                 motivo do pensando. O ciclo é longo e a piscada é curta de propósito: o
+                 botão fica na tela o tempo todo, e é o intervalo parado que separa
+                 "tem alguém aí" de ruído permanente. --}}
+            <style>
+                @keyframes claudinho-piscada {
+
+                    0%,
+                    96%,
+                    100% {
+                        transform: scaleY(1)
+                    }
+
+                    97.5%,
+                    98.5% {
+                        transform: scaleY(.08)
+                    }
+                }
+
+                .claudinho-piscada {
+                    transform-box: fill-box;
+                    transform-origin: center;
+                    animation: claudinho-piscada 8s infinite;
+                }
+
+                @media (prefers-reduced-motion: reduce) {
+                    .claudinho-piscada {
+                        animation: none;
+                    }
+                }
+            </style>
+
             <button type="button" x-show="! aberto" x-on:click="abrir()" x-bind:aria-expanded="aberto ? 'true' : 'false'"
                 title="{{ $rotulo }}" aria-label="{{ $rotulo }}"
                 @class([
-                    'fixed z-40 bottom-6 inline-flex items-center justify-center w-14 h-14 text-white transition rounded-full shadow-lg bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900',
+                    'fixed z-40 bottom-6 inline-flex items-center justify-center w-14 h-14 transition bg-white rounded-full shadow-lg ring-1 ring-sky-600/30 hover:bg-gray-50 hover:ring-sky-600/60 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:bg-gray-900 dark:ring-sky-400/30 dark:hover:bg-gray-800 dark:hover:ring-sky-400/60 dark:focus:ring-offset-gray-900',
                     'left-6' => $aEsquerda,
                     'right-6' => !$aEsquerda,
                 ])>
-                <svg class="w-6 h-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
-                    aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.48.432.447.74 1.04.586 1.641a4.483 4.483 0 0 1-.923 1.785A5.969 5.969 0 0 0 6 20.25c1.282 0 2.47-.402 3.445-1.087.81.22 1.668.337 2.555.337Z" />
-                </svg>
+                {{-- `piscando`, não `animado`: o pisca contínuo dos dois olhos mais o
+                     cabelo balançando é ruído permanente num canto da tela. A piscadela
+                     de um olho a cada 8s dá vida sem competir com a página. --}}
+                <x-claudinho::marca altura="h-8" piscando />
 
                 {{-- style inline porque o ponto nasce escondido e o x-cloak exigiria CSS
                      publicado pela aplicação. --}}
