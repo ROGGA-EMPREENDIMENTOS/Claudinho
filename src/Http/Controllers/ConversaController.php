@@ -232,9 +232,18 @@ class ConversaController
 
         $usuario = $resolvedor->resolver($canal, $identificador);
 
-        // Mensagem genérica: quem manda a requisição não deve descobrir quais
-        // números estão cadastrados testando um por um.
+        // Mensagem genérica, e a mesma para número desconhecido e para usuário sem
+        // permissão: quem manda a requisição não deve mapear quem está cadastrado
+        // nem quem tem acesso, testando um por um.
         abort_if($usuario === null, 403, 'Remetente não autorizado.');
+
+        // O MESMO gate que abre o chat em tela (claudinho.permissao). Sem isto, um
+        // número cadastrado seria um caminho paralelo para usar o assistente sem a
+        // permissão que a aplicação exige na tela — e caminho paralelo de permissão
+        // é justamente o que este endpoint não pode ter.
+        $permissao = config('claudinho.permissao');
+
+        abort_if(filled($permissao) && ! $usuario->can($permissao), 403, 'Remetente não autorizado.');
 
         Auth::setUser($usuario);
 

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Rogga\Claudinho\Http\Middleware\AutenticaCanal;
 
@@ -151,3 +152,39 @@ it('usa o prefixo configurado', function () {
 
     expect($rota->uri())->toBe('bot/v1/conversa');
 });
+
+it('exige do remetente a mesma permissão que abre o chat em tela', function () {
+    comEndpoint(['claudinho.permissao' => 'use_assistente']);
+
+    Gate::define('use_assistente', fn (): bool => false);
+
+    // Número cadastrado, mas sem a permissão: sem esta checagem, o WhatsApp seria um
+    // caminho paralelo para usar o assistente sem o gate que a tela exige.
+    $resposta = test()->withToken('token-do-gateway')
+        ->postJson('/claudinho/conversa', [
+            'canal' => 'whatsapp',
+            'identificador' => '5547999998888',
+            'mensagem' => 'quantas obras ativas?',
+        ]);
+
+    $resposta->assertStatus(403);
+
+    // Mesma mensagem de número desconhecido: a resposta não distingue "não
+    // cadastrado" de "sem permissão", senão vira sonda de quem tem acesso.
+    expect($resposta->json('message'))->toBe('Remetente não autorizado.');
+});
+
+it('atende quando o remetente tem a permissão', function () {
+    comEndpoint(['claudinho.permissao' => 'use_assistente']);
+
+    Gate::define('use_assistente', fn (): bool => true);
+    fakeStreams(rodadaTexto('São 12 obras ativas.'));
+
+    test()->withToken('token-do-gateway')
+        ->postJson('/claudinho/conversa', [
+            'canal' => 'whatsapp',
+            'identificador' => '5547999998888',
+            'mensagem' => 'quantas obras ativas?',
+        ])
+        ->assertOk();
+})->skip(fn () => ! extension_loaded('pdo_sqlite') && ! env('DB_CONNECTION'), 'Requer banco.');
