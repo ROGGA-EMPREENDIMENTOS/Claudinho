@@ -79,8 +79,29 @@ class Configuracao extends Model
         return filled($valor) ? $valor : $padrao;
     }
 
+    /**
+     * Grava por cima sem nunca ler o valor que está no banco.
+     *
+     * Omitir `valor` do select não é economia de coluna: com ele carregado, o
+     * isDirty() de dentro do save() decifra o valor gravado para comparar com o
+     * novo, e linha cifrada com outra APP_KEY estoura DecryptException ali —
+     * antes de qualquer escrita. Sem o original em mãos o Eloquent conta o
+     * atributo como sujo sem comparar nada, então a gravação passa.
+     *
+     * O framework tem um atalho para isso, mas só quando APP_PREVIOUS_KEYS está
+     * configurado (HasAttributes::originalIsEquivalent), o que não cobre chave
+     * antiga perdida. E regravar pela tela é justamente o caminho de recuperação
+     * que todas() promete ao engolir o DecryptException na leitura: se a escrita
+     * também não tolerar linha ilegível, não há como sair do estado quebrado.
+     */
     public static function definir(string $chave, ?string $valor): void
     {
-        static::query()->updateOrCreate(['chave' => $chave], ['valor' => $valor]);
+        $configuracao = static::query()
+            ->select(['id', 'chave'])
+            ->firstOrNew(['chave' => $chave]);
+
+        $configuracao->valor = $valor;
+
+        $configuracao->save();
     }
 }

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Encryption\Encrypter;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -176,6 +177,75 @@ it('sobrevive à tabela ainda não migrada, caindo no config', function () {
     expect(Configuracao::todas())->toBe([])
         ->and(Configuracao::valor('model', config('claudinho.model')))->toBe('claude-sonnet-5')
         ->and(Configuracao::valor('api_key', config('claudinho.api_key')))->toBe('do-env');
+});
+
+/**
+ * Grava uma linha cifrada por OUTRA chave, que é o que sobra no banco depois de
+ * rotacionar a APP_KEY (ou de apontar o app para um banco populado por outro
+ * ambiente). O ciphertext é bem formado; o que falha é o MAC.
+ */
+function linhaIlegivel(string $chave, string $valor = 'valor-antigo'): void
+{
+    $outraChave = new Encrypter(random_bytes(32), (string) config('app.cipher'));
+
+    DB::table('claudinho_configuracoes')->insert([
+        'chave' => $chave,
+        'valor' => $outraChave->encryptString($valor),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+}
+
+it('regrava por cima de valor cifrado com outra APP_KEY', function () {
+    linhaIlegivel('api_key', 'sk-ant-da-chave-antiga');
+
+    // A leitura já era tolerante: linha ilegível conta como ausente.
+    expect(Configuracao::valor('api_key', 'do-env'))->toBe('do-env');
+
+    // E a escrita não era: o isDirty() de dentro do save() decifrava o valor
+    // gravado para comparar com o novo e estourava DecryptException aqui, antes
+    // de escrever — deixando o usuário sem caminho de volta.
+    Configuracao::definir('api_key', 'sk-ant-a-nova');
+
+    expect(Configuracao::valor('api_key'))->toBe('sk-ant-a-nova');
+});
+
+it('limpa por cima de valor cifrado com outra APP_KEY', function () {
+    config()->set('claudinho.api_key', 'do-env');
+    linhaIlegivel('api_key');
+
+    // Caminho do botão Limpar: grava null, que devolve o controle ao env.
+    Configuracao::definir('api_key', null);
+
+    expect(Configuracao::valor('api_key', config('claudinho.api_key')))->toBe('do-env');
+});
+
+it('deixa a tela de configurações recuperar de linhas ilegíveis', function () {
+    comoAdmin();
+    linhaIlegivel('model', 'claude-sonnet-5');
+    linhaIlegivel('api_key', 'sk-ant-da-chave-antiga');
+
+    Livewire::test(Configuracoes::class)
+        ->set('modelo', 'claude-opus-5')
+        ->set('chaveNova', 'sk-ant-api03-uma-chave-bem-longa')
+        ->call('salvar')
+        ->assertHasNoErrors()
+        ->assertDispatched('claudinho-configuracoes-salvas');
+
+    expect(Configuracao::valor('model'))->toBe('claude-opus-5')
+        ->and(Configuracao::valor('api_key'))->toBe('sk-ant-api03-uma-chave-bem-longa');
+});
+
+it('grava na mesma linha em vez de recriar o registro', function () {
+    Configuracao::definir('model', 'claude-sonnet-5');
+    $id = DB::table('claudinho_configuracoes')->where('chave', 'model')->value('id');
+
+    Configuracao::definir('model', 'claude-opus-5');
+
+    // Recriar a linha seria a saída fácil para o DecryptException, mas perde o
+    // registro e corre risco no unique de chave.
+    expect(DB::table('claudinho_configuracoes')->where('chave', 'model')->value('id'))->toBe($id)
+        ->and(DB::table('claudinho_configuracoes')->where('chave', 'model')->count())->toBe(1);
 });
 
 it('mantém selecionável um modelo fora da lista do config', function () {

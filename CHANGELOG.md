@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.1.1
+
+### Corrigido
+
+- **Salvar na tela de configurações estourava `DecryptException` depois de rotacionar a
+  `APP_KEY`** (ou ao apontar a aplicação para um banco populado por outro ambiente). A coluna
+  `valor` tem cast `encrypted`, e o `updateOrCreate()` de `Configuracao::definir()` chamava
+  `save()` → `isDirty()` → `originalIsEquivalent()`, que **decifra o valor que está no banco**
+  para comparar com o novo. Linha cifrada com outra chave derrubava a requisição ali, antes
+  de qualquer escrita.
+
+  O grave não era o erro em si, era o beco sem saída: `todas()` engole o `DecryptException`
+  na leitura justamente para o usuário poder regravar pela tela — e regravar era exatamente
+  o que não funcionava. A assimetria entre leitura tolerante e escrita intolerante deixava a
+  aplicação presa: o chat seguia no `.env`, mas nenhuma gravação passava, nem a da chave nova
+  que consertaria o estado.
+
+  `definir()` passou a montar o registro com um select sem a coluna `valor`. Sem o original
+  carregado, o Eloquent conta o atributo como sujo sem comparar nada — não há o que decifrar.
+  A linha é preservada (mesmo `id`), então nada de `delete`+`insert`, que perderia o registro
+  e correria risco no unique de `chave`.
+
+  O framework tem um atalho para este caso em `HasAttributes::originalIsEquivalent()`, mas só
+  quando `APP_PREVIOUS_KEYS` está configurado — o que não cobre chave antiga perdida, que é o
+  cenário real de quem cai aqui.
+
 ## v1.1.0
 
 ### Adicionado
