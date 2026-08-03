@@ -13,6 +13,8 @@ consultas do seu sistema — e o pacote garante que o modelo só veja o que o us
 - **Tool use com loop** — o modelo consulta o banco, recebe o resultado e continua, até 5 voltas.
 - **Autorização em duas barreiras** — o que o usuário não pode ver não é nem oferecido ao
   modelo, e a permissão é revalidada antes de cada execução.
+- **Ações com confirmação** — ferramenta que altera dados pausa o loop e mostra o efeito
+  para o usuário aprovar. Nada é alterado sem clique.
 - **Markdown sanitizado** — tabela e lista renderizam; `<script>` e `javascript:` são removidos.
 - **Gráfico de barras em SVG** — gerado no servidor a partir de dados tipados. O modelo
   nunca emite HTML.
@@ -150,8 +152,9 @@ Route::get('/assistente', fn () => view('assistente'))
 
 ## Escrevendo uma ferramenta
 
-Uma ferramenta é uma consulta somente-leitura. Estenda `FerramentaBase` e declare o que
-importa:
+Uma ferramenta é uma consulta somente-leitura. Para alterar dados, ver
+[Ações](#ações-quando-a-ferramenta-altera-dados) — é outra classe base, com outras regras.
+Estenda `FerramentaBase` e declare o que importa:
 
 ```php
 namespace App\Claudinho\Ferramentas;
@@ -221,6 +224,123 @@ Registre em `config/claudinho.php`:
 O `paginado()` devolve `total_encontrado`, `mostrando` e `truncado` — é o que permite ao
 assistente dizer *"são 84, mostrando 25"* em vez de contar as linhas que recebeu e errar.
 
+## Ações: quando a ferramenta altera dados
+
+Uma **ação** é uma ferramenta que escreve. Estenda `AcaoBase` (que é uma `FerramentaBase`
+com o contrato `Acao`) e acrescente `confirmacao()`:
+
+```php
+namespace App\Claudinho\Acoes;
+
+use App\Models\Pedido;
+use Rogga\Claudinho\AcaoBase;
+
+class CancelarPedido extends AcaoBase
+{
+    protected ?string $permissao = 'cancelar_pedidos';
+
+    public function nome(): string
+    {
+        return 'cancelar_pedido';
+    }
+
+    public function descricao(): string
+    {
+        return 'Cancela um pedido que ainda está em aberto. Não serve para pedido já '
+            .'faturado — nesse caso é estorno, que não tem ferramenta.';
+    }
+
+    public function propriedades(): array
+    {
+        return [
+            'pedido' => ['type' => 'integer', 'description' => 'Id do pedido.'],
+            'motivo' => ['type' => 'string', 'description' => 'Motivo do cancelamento.'],
+        ];
+    }
+
+    public function obrigatorios(): array
+    {
+        return ['pedido', 'motivo'];
+    }
+
+    /** O que o usuário lê antes de aprovar. */
+    public function confirmacao(array $input): string
+    {
+        $pedido = Pedido::find($input['pedido']);
+
+        return $pedido
+            ? "Cancelar o pedido {$pedido->numero} de {$pedido->cliente->nome} "
+                ."(R$ {$pedido->total})? Motivo: {$input['motivo']}."
+            : "Cancelar o pedido {$input['pedido']}? Motivo: {$input['motivo']}.";
+    }
+
+    public function executar(array $input): array
+    {
+        $pedido = Pedido::find($input['pedido']);
+
+        if (! $pedido) {
+            return ['erro' => "Pedido {$input['pedido']} não encontrado."];
+        }
+
+        if ($pedido->faturado) {
+            return ['erro' => "O pedido {$pedido->numero} já foi faturado e não pode ser cancelado."];
+        }
+
+        $pedido->cancelar($input['motivo']);
+
+        return ['cancelado' => $pedido->numero];
+    }
+}
+```
+
+Registre no mesmo array das consultas:
+
+```php
+'ferramentas' => [
+    App\Claudinho\Ferramentas\ListarObras::class,
+    App\Claudinho\Acoes\CancelarPedido::class,
+],
+```
+
+### O que o pacote faz com isso
+
+1. **Marca a descrição.** A definição enviada ao modelo ganha *"ATENÇÃO: esta ferramenta
+   ALTERA DADOS. A interface pede confirmação ao usuário antes de executar"*. O system prompt
+   passa a instruir o modelo a **chamar** a ferramenta em vez de pedir permissão por texto —
+   pedir duas vezes é o que treina o usuário a clicar sem ler.
+2. **Pausa o loop.** No `tool_use` de uma ação, o loop para *antes de executar* e a conversa
+   mostra um card com a sua `confirmacao()` e os botões **Confirmar e executar** / **Cancelar**.
+   O campo de pergunta fica bloqueado até a decisão.
+3. **Retoma.** Confirmado, a ação executa (com a permissão revalidada) e o loop continua de
+   onde parou. Cancelado, o modelo recebe `{"recusada": true}` e volta a falar — o usuário
+   tem uma resposta, não um card que some.
+4. **Registra na conversa.** O rótulo distingue *"Alterou dados: cancelar_pedido (pedido:
+   4821)"* de *"Alteração não autorizada pelo usuário"* e de *"Alteração falhou"*, com cor
+   própria. Consulta e alteração nunca aparecem com o mesmo verbo.
+
+Se o modelo pedir várias ações numa volta só, cada uma ganha o seu card e o loop só segue
+quando a última for decidida — a API exige que todo `tool_use` seja respondido de uma vez.
+Consultas da mesma volta rodam na hora, mas o resultado fica retido até lá.
+
+### Regras que a `AcaoBase` impõe
+
+- **Gate obrigatório.** `permissao` em `null` **nega** numa ação, ao contrário de uma
+  consulta (onde `null` libera, porque é o caso do gráfico). Esquecer o gate não vira
+  escrita liberada para qualquer usuário autenticado.
+- **A confirmação é a interface do risco.** `confirmacao()` recebe o input do modelo e deve
+  nomear o efeito e os registros afetados. *"Cancelar o pedido 4821 da Acme (R$ 12.400)"* é
+  confirmável; *"Executar cancelar_pedido"* não é. Consultar o banco aqui para montar a
+  frase é bem-vindo — é o que transforma um id em algo que o usuário reconhece.
+- **Valide em `executar()` de novo.** A confirmação é texto; a regra de negócio é código. O
+  usuário pode aprovar o cancelamento de um pedido que faturou nesse meio-tempo.
+- **Erro previsível volta como `['erro' => '...']`**, como em qualquer ferramenta. Se o
+  efeito puder ficar aplicado pela metade, diga isso na mensagem: o system prompt instrui o
+  modelo a não repetir a chamada e a sugerir conferir o registro.
+
+Para alteração de efeito pequeno e reversível, `protected bool $confirmar = false;` executa
+direto, sem card. O rótulo na conversa e o aviso na descrição continuam — o que se perde é
+só o clique.
+
 ## O glossário é o que faz a diferença
 
 Schema o modelo descobre sozinho; **semântica não**. Coloque em `config/claudinho.php`
@@ -273,8 +393,11 @@ Ao trocar `grafico.cor`, valide a cor contra a superfície onde o gráfico é re
 
 - **Text-to-SQL.** Se a autorização da sua aplicação vive em Gates e Global Scopes, uma
   ferramenta que aceita SQL é bypass de permissão por construção.
-- **Escrita.** Todas as ferramentas são de leitura. Ação com efeito colateral pede
-  confirmação explícita na UI, que é responsabilidade da aplicação.
+- **Escrita sem você escrever.** O pacote não traz nenhuma ação pronta e não deduz nenhuma
+  do seu schema: quem declara o que pode ser alterado é você, uma classe por ação. Ver
+  [Ações](#ações-quando-a-ferramenta-altera-dados).
+- **Desfazer.** Confirmada a ação, o efeito é o que a sua classe fizer. Se precisa de
+  reversão, é a sua aplicação que grava o histórico e oferece o desfazer.
 - **Aprender sozinho.** Ver a seção do glossário.
 - **Acessar a web.** Nenhuma tool de busca, fetch de URL ou maps é declarada — todo o
   contexto que entra vem do banco da sua aplicação. Consequência prática: as regras

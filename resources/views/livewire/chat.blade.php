@@ -166,14 +166,31 @@
                         </div>
                     </article>
                 @elseif ($mensagem['autor'] === 'sistema')
+                    {{-- Alteração não pode ficar com a mesma cor de consulta: o rótulo é o
+                         registro visível de que algo mudou no sistema. --}}
+                    @php($acao = $mensagem['tipo'] === 'acao')
                     <article wire:key="msg-{{ $indice }}" class="flex justify-start">
-                        <div
-                            class="inline-flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 border border-gray-100 rounded-md bg-gray-50 dark:text-gray-400 dark:border-gray-700 dark:bg-gray-800">
-                            <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75" />
-                            </svg>
+                        <div @class([
+                            'inline-flex items-center gap-1.5 px-2 py-1 text-xs border rounded-md',
+                            'text-gray-500 border-gray-100 bg-gray-50 dark:text-gray-400 dark:border-gray-700 dark:bg-gray-800' => !$acao,
+                            'text-amber-800 border-amber-200 bg-amber-50 dark:text-amber-200 dark:border-amber-800/60 dark:bg-amber-950/40' => $acao && $mensagem['situacao'] === 'concluida',
+                            'text-gray-500 border-gray-200 bg-gray-50 line-through dark:text-gray-400 dark:border-gray-700 dark:bg-gray-800' => $acao && $mensagem['situacao'] === 'recusada',
+                            'text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-900/60 dark:bg-red-950/40' => $acao && $mensagem['situacao'] === 'erro',
+                            'text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800/60 dark:bg-amber-950/40' => $acao && $mensagem['situacao'] === 'pendente',
+                        ])>
+                            @if ($acao)
+                                <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                                    stroke="currentColor" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                                </svg>
+                            @else
+                                <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                                    stroke="currentColor" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75" />
+                                </svg>
+                            @endif
                             {{ $mensagem['texto'] }}
                         </div>
                     </article>
@@ -194,6 +211,42 @@
                 </article>
             @endforelse
 
+            {{-- Ação proposta pelo modelo. É o único ponto do chat em que nada acontece sem
+                 um clique: o loop está pausado aqui, com o tool_use ainda sem resultado. --}}
+            @foreach ($pendentes as $pendente)
+                <article wire:key="pendente-{{ $pendente['id'] }}" class="flex justify-start">
+                    <div
+                        class="w-full max-w-[80%] px-3 py-2.5 text-sm border rounded-lg border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100">
+                        <p class="flex items-start gap-2 font-medium">
+                            <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                                stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                            </svg>
+                            <span>{{ $pendente['confirmacao'] }}</span>
+                        </p>
+
+                        <p class="mt-1 text-xs text-amber-700 dark:text-amber-300/80">
+                            Esta ferramenta altera dados do sistema. Nada foi alterado ainda.
+                        </p>
+
+                        <div class="flex items-center gap-2 mt-2.5">
+                            <button type="button" wire:click="confirmar('{{ $pendente['id'] }}')"
+                                wire:loading.attr="disabled" wire:target="confirmar,recusar"
+                                class="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-white transition rounded-md bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-1 disabled:opacity-50 dark:focus:ring-offset-gray-900">
+                                Confirmar e executar
+                            </button>
+
+                            <button type="button" wire:click="recusar('{{ $pendente['id'] }}')"
+                                wire:loading.attr="disabled" wire:target="confirmar,recusar"
+                                class="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-gray-700 transition bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1 disabled:opacity-50 dark:text-gray-200 dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </article>
+            @endforeach
+
             @if ($respondendo)
                 <article wire:key="resposta-em-andamento" wire:init="responder" class="flex justify-start">
                     {{-- O Claudinho animado fica dentro da bolha, à esquerda: antes do primeiro
@@ -209,10 +262,15 @@
         </section>
 
         {{-- Enviar é intenção explícita: volta para o fim mesmo se o usuário tinha subido. --}}
+        {{-- Bloquear enquanto há ação pendente não é só UI: pergunta nova deixaria um
+             tool_use sem tool_result e a API rejeitaria a conversa inteira. O componente
+             barra de novo no servidor, porque HTML desabilitado não é validação. --}}
+        @php($bloqueado = $respondendo || $pendentes !== [])
         <form wire:submit="enviar" x-on:submit="$dispatch('claudinho-rolar')"
             class="flex items-center gap-2 p-4 border-t border-gray-100 dark:border-gray-800">
             <section class="grow">
-                <textarea wire:model="pergunta" rows="2" placeholder="Digite sua pergunta..." @disabled($respondendo)
+                <textarea wire:model="pergunta" rows="2" @disabled($bloqueado)
+                    placeholder="{{ $pendentes !== [] ? 'Confirme ou cancele a alteração acima para continuar...' : 'Digite sua pergunta...' }}"
                     x-on:keydown.enter="if (! $event.shiftKey) { $event.preventDefault(); $el.form.requestSubmit() }"
                     class="w-full text-sm border-gray-300 rounded-md resize-none focus:border-sky-500 focus:ring-sky-500 disabled:bg-gray-50 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:placeholder-gray-500 dark:disabled:bg-gray-800/50"></textarea>
 
@@ -222,7 +280,7 @@
             </section>
 
             {{-- Só ícone: o aria-label é o que sobra de nome acessível, então não pode sair. --}}
-            <button type="submit" @disabled($respondendo) title="Enviar" aria-label="Enviar"
+            <button type="submit" @disabled($bloqueado) title="Enviar" aria-label="Enviar"
                 class="inline-flex items-center justify-center w-10 h-10 text-white transition rounded-md shrink-0 bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-50 dark:focus:ring-offset-gray-900">
                 <span wire:loading.remove wire:target="enviar" class="inline-flex">
                     <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"

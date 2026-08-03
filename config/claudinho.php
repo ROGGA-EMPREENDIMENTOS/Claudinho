@@ -140,10 +140,15 @@ return [
     | declara sua própria permissão e é exposta ao modelo somente se o usuário
     | puder usá-la.
     |
+    | Consultas e ações vão no mesmo array. Consulta estende FerramentaBase;
+    | ação (que altera dados) estende AcaoBase, exige gate declarado e pausa o
+    | chat pedindo confirmação do usuário antes de executar. Ver o README.
+    |
     */
 
     'ferramentas' => [
         // App\Claudinho\Ferramentas\BuscarFuncionario::class,
+        // App\Claudinho\Acoes\CancelarPedido::class,
     ],
 
     /*
