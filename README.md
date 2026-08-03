@@ -311,6 +311,14 @@ php artisan migrate   # tabela claudinho_conversas
 O resto — ligar o atendimento e gerar o token — sai pela engrenagem do chat, sem `.env` e sem
 deploy. Ver [Configurações em tela](#configurações-em-tela).
 
+> **Se você publicou o `config/claudinho.php` antes desta versão**, ele não tem o bloco `api`.
+> O `mergeConfigFrom` do Laravel é **raso**: acrescentar só `'api' => ['resolvedor' => ...]`
+> substitui o bloco inteiro do pacote e você perde `prefixo`, `throttle`,
+> `palavras_confirmacao` e o resto — silenciosamente, todos como `null`. Copie o bloco `api`
+> **completo** do config do pacote, ou republique com
+> `vendor:publish --tag=claudinho-config --force` (isto sobrescreve suas edições de `contexto`,
+> `glossario` e `ferramentas`, então guarde uma cópia antes).
+
 ### A resposta
 
 ```json

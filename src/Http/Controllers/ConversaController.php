@@ -189,7 +189,11 @@ class ConversaController
             $partes[] = 'Responda apenas SIM para confirmar. Qualquer outra resposta cancela.';
         }
 
-        $texto = trim(implode("\n\n", array_filter(array_map('trim', $partes))));
+        // O cast antes do trim não é enfeite: $prefixo é null no caminho normal (sem
+        // motivo de recusa), e trim(null) é deprecated no PHP 8 e erro no PHP 9.
+        $partes = array_map(fn (?string $parte): string => trim((string) $parte), $partes);
+
+        $texto = trim(implode("\n\n", array_filter($partes)));
 
         // Modelo que só chamou ferramenta e não escreveu nada deixaria o canal sem
         // resposta — silêncio parece falha para quem está do outro lado.

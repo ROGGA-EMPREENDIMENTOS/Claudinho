@@ -72,7 +72,7 @@
                 @endif
 
                 @if ($this->podeAdministrar())
-                    <button type="button" x-on:click="$dispatch('claudinho-abrir-configuracoes')" title="Configurações"
+                    <button type="button" x-on:click="$dispatch('claudinho-abrir-configuracoes', { dono: @js($this->getId()) })" title="Configurações"
                         aria-label="Configurações"
                         class="inline-flex items-center justify-center w-8 h-8 text-gray-500 transition bg-white border border-gray-300 rounded-md shrink-0 hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1 dark:text-gray-400 dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-white dark:focus:ring-offset-gray-900">
                         <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5"

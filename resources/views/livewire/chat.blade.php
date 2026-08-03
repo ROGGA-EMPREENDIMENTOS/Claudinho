@@ -189,6 +189,9 @@
          o componente ainda revalida o gate em cada ação, já que HTML ausente não é
          autorização. --}}
     @if ($this->podeAdministrar())
-        @livewire('claudinho.configuracoes')
+        {{-- key própria: dois chats na página são dois modais distintos, e sem ela o
+             Livewire trataria os dois como o mesmo componente. --}}
+        @livewire('claudinho.configuracoes', ['dono' => $this->getId()],
+            key('claudinho-configuracoes-'.$this->getId()))
     @endif
 </div>

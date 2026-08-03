@@ -4,7 +4,12 @@
 {{-- style="display:none" em vez de x-cloak: o x-show do Alpine remove a propriedade
      ao abrir, e assim o modal não pisca antes do Alpine carregar nem depende de
      nenhuma regra de CSS da aplicação. --}}
-<div x-data="{ aberto: false, salvo: false }" x-on:claudinho-abrir-configuracoes.window="aberto = true"
+{{-- .window é necessário: a engrenagem vive no card, que é irmão deste modal, então
+     o evento não passa por aqui ao subir. O preço é que TODO modal da página escuta,
+     e por isso a comparação de dono abaixo — sem ela, dois chats na mesma página
+     abriam dois modais empilhados. --}}
+<div x-data="{ aberto: false, salvo: false }"
+    x-on:claudinho-abrir-configuracoes.window="if (! $event.detail?.dono || $event.detail.dono === @js($dono)) aberto = true"
     x-on:claudinho-configuracoes-salvas="salvo = true; setTimeout(() => salvo = false, 2500)"
     x-on:keydown.escape.window="aberto = false">
 

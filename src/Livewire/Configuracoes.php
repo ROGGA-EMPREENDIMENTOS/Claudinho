@@ -7,6 +7,7 @@ namespace Rogga\Claudinho\Livewire;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Rogga\Claudinho\Models\Configuracao;
 use Throwable;
@@ -18,6 +19,21 @@ use Throwable;
  */
 class Configuracoes extends Component
 {
+    /**
+     * Id do Chat que abriu este modal.
+     *
+     * Existe porque a mesma página pode ter mais de um chat — o botão flutuante no
+     * layout global e o card numa tela dedicada, por exemplo. Cada um renderiza o
+     * seu modal, e sem isto uma clicada na engrenagem abria TODOS: o primeiro X
+     * fechava o de cima e revelava o de baixo, dando a impressão de precisar clicar
+     * duas vezes.
+     *
+     * Vazio significa "atende qualquer chamada", para quem monte este componente
+     * sozinho, fora de um chat.
+     */
+    #[Locked]
+    public string $dono = '';
+
     public string $modelo = '';
 
     /**

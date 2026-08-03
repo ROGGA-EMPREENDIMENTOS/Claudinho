@@ -1,5 +1,56 @@
 # Changelog
 
+## v1.3.1
+
+### Adicionado
+
+- **Ligar a API e gerar o token pela tela**, sem `.env`. `api.habilitado` e `api.token` do
+  config viraram apenas o *padrão*; o valor gravado em tela vence, como já valia para modelo e
+  chave. O padrão segue desligado: atualizar o pacote não abre endpoint.
+  - O **token do chamador** é gerado na tela, guardado criptografado, com rotação e revogação.
+    Aparece **uma vez só**, na resposta em que é gerado — ao contrário da chave do Claude,
+    este segredo precisa ser lido, porque quem opera tem de copiá-lo para o gateway. Depois
+    disso, só a máscara; perdeu, gera outro e o anterior para de valer na hora.
+  - As rotas passaram a ser registradas **sempre**, com o middleware decidindo. Decidir no
+    boot exigiria ler o banco em toda requisição da aplicação, inclusive nas que nunca falam
+    com o Claudinho — e é o banco que guarda o interruptor. Rota existir desligada não é
+    brecha: o middleware recusa antes de qualquer processamento e **depois** do token, então
+    quem não se autenticou recebe 401 nos dois casos e não usa a resposta como sensor de
+    estado.
+  - Consequência a registrar: sem trava de `.env`, quem passa no gate `permissao_admin` pode
+    abrir um endpoint HTTP com acesso aos dados. O resolvedor de usuário continua sendo código
+    (é uma classe), então nada atende sem ele — mas vale conferir quem tem essa permissão.
+  - O diagnóstico da tela passou a resolver três dos quatro itens ali mesmo; o quarto é o
+    resolvedor, que não tem como vir de formulário.
+
+### Corrigido
+
+- **O endpoint não exigia do remetente a permissão que abre o chat.** O `Chat::mount()` checa
+  `claudinho.permissao`; o `ConversaController` não checava. Um número cadastrado no resolvedor
+  era, portanto, um caminho paralelo para usar o assistente sem o gate que a aplicação exige na
+  tela — exatamente o que este endpoint não pode ter. A recusa devolve a **mesma** mensagem de
+  número desconhecido: distinguir os dois casos entregaria, a quem tem o token, uma sonda de
+  quem tem acesso.
+- **Uma clicada na engrenagem abria todos os modais de configuração da página.** Quando há mais
+  de um chat — o botão flutuante no layout global e o card numa tela dedicada, por exemplo —
+  cada um renderiza o seu modal, e todos escutavam o evento em `window`. O primeiro X fechava o
+  de cima e revelava o de baixo, dando a impressão de precisar clicar duas vezes. Agora o
+  evento diz de quem é, e cada modal só responde ao seu. O `.window` continua necessário: a
+  engrenagem vive no card, que é irmão do modal, então o evento não passa por ele ao subir.
+- `trim(null)` no `ConversaController`: `$prefixo` é null no caminho normal, e isso é deprecation
+  no PHP 8 e **erro no PHP 9**. Passou por toda a suíte em silêncio e só apareceu num teste
+  manual contra a aplicação — o handler de erros do Laravel engole deprecations antes do PHPUnit
+  ver, então a suíte não cobre essa classe de problema.
+
+### Alterado
+
+- A borda do chat flutuante ficou **mais suave**: 1px a 50%, acento em vez de contorno, no anel
+  do botão e na borda do painel. Isso a põe em 1,7:1 sobre branco, abaixo do 3:1 exigido de
+  elemento de interface — aceitável porque não é a linha que identifica os componentes (o botão
+  é o círculo branco com sombra e a marca dentro; o painel é o próprio fundo mais a sombra). O
+  anel de **foco** continua sky-500 em 2px, intocado: é ele que precisa saltar e é nele que a
+  exigência de contraste se aplica. No hover do botão a cor fecha, para o alvo dar retorno.
+
 ## v1.3.0
 
 ### Adicionado
@@ -39,22 +90,15 @@
   - **Botão flutuante**: some o botão do canto sem tirar o componente do layout. Não afeta o
     card dentro de uma página — quem o colocou ali foi a aplicação, e não cabe a uma tela de
     configuração escondê-lo. Padrão em `flutuante.ativo`.
-  - **Atendimento pela API**: liga e desliga o endpoint sem tocar no `.env`. `api.habilitado`
-    e `api.token` do config viraram apenas o *padrão*; o valor gravado em tela vence, como no
-    resto do pacote. O padrão segue **desligado**: atualizar o pacote não abre endpoint.
-  - **Token do chamador gerado na tela**, guardado criptografado como a chave do Claude, com
-    rotação e revogação. Aparece **uma vez só**, na resposta em que é gerado — diferente da
-    chave do Claude, este segredo precisa ser lido, porque quem opera tem de copiá-lo para o
-    gateway. Depois disso, só a máscara.
-  - As rotas passaram a ser registradas **sempre**, e quem liga ou desliga é o middleware.
-    Decidir no boot exigiria ler o banco em toda requisição da aplicação, inclusive nas que
-    nunca falam com o Claudinho — e é o banco que guarda o interruptor. Rota existir desligada
-    não é brecha: o middleware recusa antes de qualquer processamento e **depois** do token,
-    então quem não se autenticou recebe 401 nos dois casos e não usa a resposta como sensor de
-    estado.
-  - Consequência a registrar: sem trava de `.env`, quem passa no gate `permissao_admin` pode
-    abrir um endpoint HTTP com acesso aos dados. O resolvedor de usuário continua sendo código
-    (é uma classe), então nada atende sem ele — mas vale conferir quem tem essa permissão.
+  - **Atendimento pela API**: o endpoint passa a responder 503. Dois níveis de propósito —
+    *publicar* a rota é decisão de deploy (`api.habilitado`), porque endpoint HTTP com acesso
+    a dados não se cria por formulário web; *ligar e desligar o atendimento* é operação, e
+    fica na tela. Sem a rota publicada, o interruptor aparece desabilitado explicando o que
+    falta, em vez de fingir que liga algo.
+  - O interruptor da API é lido no **middleware**, não no boot do provider: ler o banco no
+    boot custaria uma consulta em toda requisição da aplicação, inclusive nas que nunca falam
+    com o Claudinho. E é checado **depois** do token — quem não se autenticou não descobre se
+    o atendimento está ligado.
   - **Documentação embutida**, não link: só ela sabe a URL deste ambiente. Traz o contrato, um
     `curl` pronto com o endereço real, e serve de diagnóstico marcando o que falta (rota,
     token, resolvedor, migration).
@@ -63,15 +107,10 @@
 - A borda do chat flutuante passou do azul para o **terracota da marca** (`#d3754c`, o mesmo
   hex das antenas do ícone) — no anel do botão e na borda do painel. Hex literal em vez de um
   laranja aproximado do Tailwind: a borda existe para amarrar o botão ao ícone, então tem de
-  ser o mesmo tom. Sem variante `dark:`, como a própria marca.
-  - Fica em **1px a 50%**: acento, não contorno. Isso a põe em 1,7:1 sobre branco, abaixo do
-    3:1 exigido de elemento de interface — aceitável porque não é a linha que identifica os
-    componentes. O botão é o círculo branco com sombra e a marca dentro; o painel é o próprio
-    fundo mais o `shadow-2xl`. Borda saturada em volta de uma área grande vira moldura e
-    briga com a conversa. No hover do botão a cor fecha, para o alvo responder ao ponteiro.
-  - O anel de **foco** continua sky-500 em 2px, intocado: é ele que precisa saltar, é ele que
-    tem exigência real de contraste, e laranja sobre laranja não se veria.
-  - O card inline segue com a borda cinza discreta.
+  ser o mesmo tom. Sem variante `dark:`, como a própria marca, e com contraste verificado
+  (3,27:1 sobre branco e 5,55:1 sobre `gray-900`, acima do mínimo de 3:1 para elemento de
+  interface). O anel de **foco** continua sky, de propósito: foco precisa se distinguir do
+  repouso, e laranja sobre laranja não se vê. O card inline segue com a borda cinza discreta.
 - `Configuracao::todas()` passou a memorizar o resultado **dentro da requisição**. Não é cache
   store (que o docblock recusa, por causa da chave da API): é só não repetir a mesma consulta
   na mesma requisição. O Claude lê duas chaves por resposta e a tela agora lê mais três.
