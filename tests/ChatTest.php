@@ -346,3 +346,25 @@ it('renderiza as variantes dark do container e das bolhas', function () {
         ->assertSee('dark:bg-sky-950', false)
         ->assertSee('dark:bg-gray-800', false);
 });
+
+it('usa o terracota da marca na borda do flutuante, não um laranja qualquer', function () {
+    $html = Livewire::test(Chat::class, ['flutuante' => true])->html();
+
+    // Mesmo hex das antenas do ícone: a borda existe para amarrar o botão e o
+    // painel à marca, então aproximar por uma cor do Tailwind quebraria o vínculo.
+    expect($html)
+        ->toContain('ring-2 ring-[#d3754c]')
+        ->toContain('border-[#d3754c]')
+        // O anel de foco segue sky: foco tem de se distinguir do repouso.
+        ->toContain('focus:ring-sky-500')
+        ->not->toContain('ring-sky-600/30');
+});
+
+it('deixa o card inline com a borda cinza discreta', function () {
+    $html = Livewire::test(Chat::class)->html();
+
+    // Inline é mais um bloco da página; laranja ali competiria com o conteúdo.
+    expect($html)
+        ->toContain('border-gray-200')
+        ->not->toContain('border-[#d3754c]');
+});

@@ -18,12 +18,16 @@ consultas do seu sistema — e o pacote garante que o modelo só veja o que o us
 - **Markdown sanitizado** — tabela e lista renderizam; `<script>` e `javascript:` são removidos.
 - **Gráfico de barras em SVG** — gerado no servidor a partir de dados tipados. O modelo
   nunca emite HTML.
-- **Configuração em tela** — modelo e chave da API pela engrenagem do header, atrás de gate
-  próprio. A chave vai criptografada no banco e nunca volta para o navegador.
+- **Configuração em tela** — modelo, chave da API e os interruptores de canal (botão
+  flutuante, atendimento pela API) pela engrenagem do header, atrás de gate próprio. A chave
+  vai criptografada no banco e nunca volta para o navegador.
 - **Tema claro e escuro** — acompanha o da aplicação pelas variantes `dark:`, sem
   configuração extra no pacote.
 - **Card na página ou chat flutuante** — o mesmo componente serve de tela dedicada ou de
   botão fixo num canto do layout, aberto em painel. Ver [Chat flutuante](#chat-flutuante).
+- **Endpoint HTTP** — o mesmo assistente por API, para WhatsApp e outros canais externos,
+  com o escopo de permissão do usuário que a aplicação apontar. Ver
+  [Endpoint para canais externos](#endpoint-para-canais-externos-whatsapp-e-afins).
 
 ## Instalação
 
@@ -67,8 +71,29 @@ content: [
 
 ## Configurações em tela
 
-A engrenagem no header abre um modal onde dá para trocar **modelo** e **chave da API** sem
-deploy. Aparece só para quem passa no gate `permissao_admin` (padrão `claudinho_admin`).
+A engrenagem no header abre um modal onde dá para trocar **modelo** e **chave da API**,
+ligar e desligar os **canais**, e consultar a **documentação da API**, tudo sem deploy.
+Aparece só para quem passa no gate `permissao_admin` (padrão `claudinho_admin`).
+
+### Interruptores de canal
+
+| Interruptor | O que faz | O que **não** faz |
+|---|---|---|
+| **Botão flutuante do chat** | Some com o botão do canto sem tirar o componente do layout. | Não afeta o chat que a aplicação colocou dentro de uma página — quem o pôs ali foi a aplicação, e não cabe a uma tela escondê-lo. |
+| **Atendimento pela API** | O endpoint passa a responder 503 e nenhuma conversa externa é atendida. | Não publica a rota. Se `api.habilitado` for false, o interruptor aparece desabilitado, explicando o que falta. |
+
+A separação em dois níveis no caso da API é deliberada: **publicar** um endpoint HTTP com
+acesso a dados é decisão de deploy (`CLAUDINHO_API=true`), porque não é coisa que se faça por
+formulário web; **ligar e desligar o atendimento** é decisão de operação, e essa fica na tela.
+O interruptor é lido no middleware, não no boot do provider — ler o banco no boot custaria uma
+consulta em toda requisição da aplicação, inclusive nas que nunca falam com o Claudinho.
+
+### Documentação da API na própria tela
+
+A seção *Documentação da API* é embutida em vez de link, porque só ela sabe a URL **deste**
+ambiente. Além do contrato e de um `curl` pronto com o endereço real, ela funciona como
+diagnóstico, marcando o que ainda falta: rota publicada, token do chamador, resolvedor de
+usuário e migration da tabela de conversas.
 
 A precedência é: o que foi gravado em tela vence o `config`/`.env`; valor vazio em tela cai
 no `.env` de novo — é o que o botão *Limpar* faz. Assim um ambiente pode continuar 100%
@@ -204,6 +229,139 @@ ajuda?" — despachando um evento na window:
 ```blade
 <button x-on:click="$dispatch('claudinho-abrir')">Falar com o assistente</button>
 ```
+
+## Endpoint para canais externos (WhatsApp e afins)
+
+O mesmo assistente por HTTP, para um gateway de WhatsApp (ou n8n, Telegram, o que for)
+conversar com ele. **Desligado por padrão** — rota que passa a existir só por ter atualizado
+o pacote seria surpresa de segurança.
+
+```
+POST /claudinho/conversa            {canal, identificador, mensagem}
+POST /claudinho/conversa/reiniciar  {canal, identificador}
+Authorization: Bearer <CLAUDINHO_API_TOKEN>
+```
+
+### Duas identidades, e não confunda
+
+| Quem | Como se identifica | O que garante |
+|---|---|---|
+| O **chamador** (o gateway) | token no header | que a requisição vem do seu servidor |
+| O **usuário** da conversa | resolver da aplicação | de quem é a permissão sobre os dados |
+
+Um token vazado dá acesso ao endpoint, **não** aos dados de todos: o escopo continua sendo o
+do usuário que o resolver devolver para aquele número.
+
+### O resolver é a peça central
+
+Todo o modelo de permissão do pacote sai de `Auth::user()` — as ferramentas checam gates, os
+Global Scopes filtram por obra, o system prompt usa o nome. O endpoint autentica como o
+usuário que você apontar e, dali em diante, **tudo funciona igual ao chat em tela**. Não
+existe caminho paralelo de permissão, de propósito.
+
+Só a sua aplicação sabe mapear telefone para usuário:
+
+```php
+namespace App\Claudinho;
+
+use App\Models\User;
+use Illuminate\Contracts\Auth\Authenticatable;
+use Rogga\Claudinho\Contracts\ResolvedorDeUsuario;
+
+class ResolvedorPorTelefone implements ResolvedorDeUsuario
+{
+    public function resolver(string $canal, string $identificador): ?Authenticatable
+    {
+        // Devolver null é a resposta certa para número desconhecido: o endpoint
+        // responde 403 e nada é consultado. NUNCA devolva um usuário "genérico" de
+        // fallback — o filtro por obra deixaria de significar coisa alguma.
+        return User::query()
+            ->where('celular', preg_replace('/\D/', '', $identificador))
+            ->where('ativo', true)
+            ->first();
+    }
+}
+```
+
+Class-string no config e não closure, porque closure não sobrevive a `config:cache`:
+
+```php
+// config/claudinho.php
+'api' => [
+    'habilitado' => env('CLAUDINHO_API', false),
+    'token' => env('CLAUDINHO_API_TOKEN'),
+    'resolvedor' => App\Claudinho\ResolvedorPorTelefone::class,
+],
+```
+
+```bash
+php artisan migrate   # tabela claudinho_conversas
+```
+
+### A resposta
+
+```json
+{
+  "resposta": "São 12 obras ativas. A maior é a Azaleia.",
+  "estado": "concluida",
+  "confirmacao": null,
+  "expira_em": "2026-08-03T20:29:47+00:00"
+}
+```
+
+`resposta` já vem pronta para reenviar ao canal — a maioria das integrações só repassa isso.
+`estado` é `concluida`, `aguardando_confirmacao` ou `erro` (HTTP 502 quando a API do Claude
+falha; a conversa continua utilizável).
+
+### Ações: confirmação por texto
+
+Pelo WhatsApp não existe o card de confirmação, então o endpoint pausa e pede por escrito:
+
+```
+> cancela o pedido 4821
+Cancelar o pedido 4821 do cliente Acme (R$ 12.400)?
+
+Responda apenas SIM para confirmar. Qualquer outra resposta cancela.
+```
+
+Três regras conservadoras, e as três são deliberadas:
+
+1. **Só aprovação exata aprova.** `sim` aprova; `sim, pode cancelar` não. Casar por conteúdo
+   faria `não, não confirmo` conter `confirmo` e autorizar o oposto do que a pessoa escreveu.
+   A resposta diz literalmente o que digitar, então a exigência é justa. A lista está em
+   `api.palavras_confirmacao`.
+2. **Qualquer outra coisa cancela**, em vez de deixar pendente. Pendência viva esperaria um
+   `sim` que pode chegar em outro assunto, meia hora depois.
+3. **Prazo próprio**, mais curto que o da conversa (`api.minutos_confirmacao`, padrão 5). E
+   mais de uma alteração pendente na mesma rodada cancela todas: uma frase de texto não
+   distingue "sim" para qual delas.
+
+Para deixar o canal **somente-leitura** sem desregistrar as ações (que continuam valendo na
+tela), `'acoes' => false`. Aí a ferramenta de escrita nem é declarada ao modelo, e é recusada
+também na execução, caso ele insista no nome.
+
+### Formatação e continuidade
+
+`api.instrucoes` entra no fim do system prompt só neste canal, e por padrão desfaz a regra de
+tabela markdown — que o chat renderiza bem e o WhatsApp não.
+
+A conversa é contínua por `canal` + `identificador` e recomeça após
+`api.minutos_inatividade` (padrão 30) de silêncio: histórico de horas atrás confunde o modelo
+mais do que ajuda, e encarece cada resposta. Agende a faxina das vencidas:
+
+```php
+Schedule::command('claudinho:limpar-conversas')->daily();
+```
+
+### Cuidados de integração
+
+- **Tempo de resposta.** Uma pergunta com consultas pode levar dezenas de segundos. Se o seu
+  gateway tem timeout curto no webhook, chame o endpoint de dentro de um job e mande a
+  resposta pela API dele depois.
+- **Gráficos não vão.** `gerar_grafico` desenha SVG na conversa, o que não existe aqui. Se o
+  canal externo é o principal, considere `grafico.habilitado => false`.
+- **O histórico fica em claro** na tabela, não criptografado: ele só contém dado que aquele
+  usuário já podia ver, e vive no mesmo banco de onde saiu.
 
 ## Escrevendo uma ferramenta
 

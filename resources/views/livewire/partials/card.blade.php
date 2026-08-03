@@ -2,11 +2,14 @@
      flutuante (painel fixo num canto). O conteúdo é o mesmo — o que muda é a caixa,
      e é só isso que $flutuante decide aqui. --}}
 <div @class([
-    'flex flex-col bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-800',
-    'w-full max-w-4xl mx-auto rounded-lg shadow-sm' => !$flutuante,
+    'flex flex-col bg-white border dark:bg-gray-900',
+    // Inline fica discreto: é mais um bloco da página.
+    'w-full max-w-4xl mx-auto rounded-lg shadow-sm border-gray-200 dark:border-gray-800' => !$flutuante,
     // No flutuante quem dimensiona é o painel; o card só preenche. Sem cantos
-    // arredondados no mobile porque lá ele ocupa a tela inteira.
-    'w-full h-full min-h-0 shadow-2xl sm:rounded-lg' => $flutuante,
+    // arredondados no mobile porque lá ele ocupa a tela inteira. A borda usa o
+    // terracota da marca (o mesmo #d3754c das antenas), para o painel e o botão
+    // lerem como a mesma coisa em cima do conteúdo da aplicação.
+    'w-full h-full min-h-0 shadow-2xl sm:rounded-lg border-[#d3754c]' => $flutuante,
 ])>
         <section class="flex items-center justify-between gap-3 px-4 py-2 border-b border-gray-100 dark:border-gray-800">
             <span class="flex items-center min-w-0 gap-2.5">

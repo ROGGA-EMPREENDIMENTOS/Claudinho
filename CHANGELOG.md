@@ -1,5 +1,96 @@
 # Changelog
 
+## v1.3.0
+
+### Adicionado
+
+- **Endpoint HTTP para canais externos**, para WhatsApp e afins conversarem com o mesmo
+  assistente. Desligado por padrão (`api.habilitado`), exige `php artisan migrate`.
+  - **Duas identidades, separadas de propósito.** O token do header autentica o *chamador*
+    (o gateway); o `ResolvedorDeUsuario` da aplicação diz de qual *usuário* é a permissão. O
+    endpoint autentica como ele, e daí em diante gates das ferramentas, Global Scopes por
+    obra e nome no system prompt valem igual ao chat em tela — não há caminho paralelo de
+    permissão. Token vazado dá acesso ao endpoint, não aos dados de todos.
+  - O resolver é class-string no config, não closure: closure não sobrevive a `config:cache`.
+  - **Confirmação de ação por texto.** Sem o card, o endpoint pausa e pede por escrito. Só
+    aprovação EXATA aprova (`sim` aprova, `sim, pode cancelar` não) — casar por conteúdo faria
+    `não, não confirmo` conter `confirmo` e autorizar o oposto. Qualquer outra resposta
+    cancela, em vez de deixar pendência viva esperando um `sim` de outro assunto. Prazo
+    próprio (`api.minutos_confirmacao`, padrão 5), e mais de uma pendência na rodada cancela
+    todas, porque uma frase não distingue para qual delas o "sim" vale.
+  - `api.acoes => false` deixa o canal somente-leitura sem desregistrar as ações, que
+    continuam valendo na tela. A ferramenta não é declarada **e** é recusada na execução —
+    tirar da lista impede de ser oferecida, não de ser pedida.
+  - `api.instrucoes` entra no fim do system prompt só neste canal, e por padrão desfaz a regra
+    de tabela markdown, que a tela renderiza bem e o WhatsApp não.
+  - Conversa contínua por canal+identificador, recomeçando após `api.minutos_inatividade`
+    (padrão 30) de silêncio. Comando `claudinho:limpar-conversas` para a faxina.
+  - Throttle e middleware configuráveis; o middleware do token é sempre acrescentado pelo
+    pacote, porque habilitar o endpoint sem autenticar o chamador não é opção a oferecer.
+- **`Rogga\Claudinho\Conversa`**: o loop de tool use virou classe headless, sem UI. O
+  componente Livewire e o endpoint usam o mesmo motor — o loop é a parte mais delicada do
+  pacote (quem grava tool_result para cada tool_use, quem conta iterações, quem vai para a
+  fila de confirmação), e duplicá-lo seria garantir que as duas cópias divergissem justamente
+  onde um erro corrompe a conversa. O `Chat` caiu de 652 para 381 linhas.
+- **`Rogga\Claudinho\Confirmacao`**: a interpretação do "sim" isolada numa classe, porque é o
+  ponto onde um acerto frouxo vira escrita não autorizada. Testável sem banco, sem HTTP e sem
+  API.
+- **Interruptores de canal na tela de configurações**, com a documentação da API junto.
+  - **Botão flutuante**: some o botão do canto sem tirar o componente do layout. Não afeta o
+    card dentro de uma página — quem o colocou ali foi a aplicação, e não cabe a uma tela de
+    configuração escondê-lo. Padrão em `flutuante.ativo`.
+  - **Atendimento pela API**: o endpoint passa a responder 503. Dois níveis de propósito —
+    *publicar* a rota é decisão de deploy (`api.habilitado`), porque endpoint HTTP com acesso
+    a dados não se cria por formulário web; *ligar e desligar o atendimento* é operação, e
+    fica na tela. Sem a rota publicada, o interruptor aparece desabilitado explicando o que
+    falta, em vez de fingir que liga algo.
+  - O interruptor da API é lido no **middleware**, não no boot do provider: ler o banco no
+    boot custaria uma consulta em toda requisição da aplicação, inclusive nas que nunca falam
+    com o Claudinho. E é checado **depois** do token — quem não se autenticou não descobre se
+    o atendimento está ligado.
+  - **Documentação embutida**, não link: só ela sabe a URL deste ambiente. Traz o contrato, um
+    `curl` pronto com o endereço real, e serve de diagnóstico marcando o que falta (rota,
+    token, resolvedor, migration).
+  - `Configuracao::booleano()`/`definirBooleano()` guardam `'1'`/`'0'`. A coluna é texto, e
+    sem isso `"false"` seria verdadeiro — o erro clássico de flag em tabela chave/valor.
+- A borda do chat flutuante passou do azul para o **terracota da marca** (`#d3754c`, o mesmo
+  hex das antenas do ícone) — no anel do botão e na borda do painel. Hex literal em vez de um
+  laranja aproximado do Tailwind: a borda existe para amarrar o botão ao ícone, então tem de
+  ser o mesmo tom. Sem variante `dark:`, como a própria marca, e com contraste verificado
+  (3,27:1 sobre branco e 5,55:1 sobre `gray-900`, acima do mínimo de 3:1 para elemento de
+  interface). O anel de **foco** continua sky, de propósito: foco precisa se distinguir do
+  repouso, e laranja sobre laranja não se vê. O card inline segue com a borda cinza discreta.
+- `Configuracao::todas()` passou a memorizar o resultado **dentro da requisição**. Não é cache
+  store (que o docblock recusa, por causa da chave da API): é só não repetir a mesma consulta
+  na mesma requisição. O Claude lê duas chaves por resposta e a tela agora lê mais três.
+
+### Corrigido
+
+- **`expira_em` se reescrevia sozinha no MySQL.** A coluna era o primeiro `TIMESTAMP NOT NULL`
+  sem default da tabela, e o MySQL dá a essa coluna um `ON UPDATE CURRENT_TIMESTAMP`
+  implícito (com `explicit_defaults_for_timestamp` desligado, que é o padrão). Qualquer UPDATE
+  que não listasse a coluna empurrava o vencimento para agora, e a conversa expirava sozinha
+  no acesso seguinte — perdendo até ação esperando confirmação. Agora é `nullable`, o que
+  remove o comportamento implícito.
+- `confirmar_ate` não estava nos `$casts` do model: voltava do banco como string e o
+  `isPast()` da checagem de prazo estourava, dando 500 em toda resposta de confirmação.
+- `ConfiguracoesTest` tinha um teste que **nunca havia rodado** (a suíte pulava tudo por
+  ausência de `pdo_sqlite`) e que não podia passar: o `abort` acontece no `mount`, então
+  encadear `set()`/`call()` depois responde 404 e esconde o 403. Virou dois testes, um para o
+  mount e outro que revoga a permissão com a tela aberta — este verificando o invariante que o
+  próprio componente documenta, de revalidar em cada ação.
+
+### Testes
+
+- O guarda dos testes de banco passou a checar se existe **conexão**, em vez de exigir
+  especificamente `pdo_sqlite`. Um teste que pula não protege nada — e foi rodando a suíte
+  contra MySQL que os dois bugs acima apareceram, nenhum deles visível no `:memory:`.
+- `migrate:fresh` entre testes de banco: em banco persistente as linhas acumulavam, e o teste
+  que faz `Schema::drop()` deixava a tabela faltando para todos os seguintes.
+- Fixtures compartilhadas (ferramentas de teste, resolver, `comEndpoint()`) foram para o
+  `Pest.php`: o Pest carrega cada arquivo isoladamente, então fixture definida num arquivo de
+  teste não existe para os outros.
+
 ## v1.2.0
 
 ### Adicionado

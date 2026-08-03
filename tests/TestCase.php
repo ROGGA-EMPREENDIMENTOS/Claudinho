@@ -10,6 +10,12 @@ use Rogga\Claudinho\ClaudinhoServiceProvider;
 
 abstract class TestCase extends Orchestra
 {
+    /**
+     * Config aplicado ANTES de a aplicação subir. Ver comConfig().
+     *
+     * @var array<string, mixed>
+     */
+    private array $configExtra = [];
 
     protected function getPackageProviders($app): array
     {
@@ -29,5 +35,25 @@ abstract class TestCase extends Orchestra
         $app['config']->set('claudinho.max_tokens', 16000);
         $app['config']->set('claudinho.effort', 'medium');
         $app['config']->set('claudinho.timeout', 120);
+
+        foreach ($this->configExtra as $chave => $valor) {
+            $app['config']->set($chave, $valor);
+        }
+    }
+
+    /**
+     * Recria a aplicação com config extra.
+     *
+     * Necessário porque as rotas do endpoint são registradas no boot do provider a
+     * partir do config: um config()->set() depois de a aplicação ter subido não
+     * cria rota nenhuma, e o teste passaria por motivo errado.
+     *
+     * @param  array<string, mixed>  $config
+     */
+    public function comConfig(array $config): void
+    {
+        $this->configExtra = $config;
+
+        $this->reloadApplication();
     }
 }

@@ -35,7 +35,29 @@ class Configuracao extends Model
      *
      * @return array<string, string|null>
      */
+    /**
+     * Memória da requisição. Não é cache store — é justamente o que o docblock de
+     * todas() recusa —, é só não repetir a mesma consulta dentro de uma requisição:
+     * o Claude lê duas chaves por resposta, e a tela agora lê mais três. Morre com
+     * o processo, e definir() a invalida.
+     *
+     * @var array<string, string|null>|null
+     */
+    private static ?array $memoria = null;
+
     public static function todas(): array
+    {
+        if (static::$memoria !== null) {
+            return static::$memoria;
+        }
+
+        return static::$memoria = static::consultar();
+    }
+
+    /**
+     * @return array<string, string|null>
+     */
+    private static function consultar(): array
     {
         try {
             if (! Schema::hasTable((new static)->getTable())) {
@@ -103,5 +125,34 @@ class Configuracao extends Model
         $configuracao->valor = $valor;
 
         $configuracao->save();
+
+        static::esquecer();
+    }
+
+    /**
+     * Descarta a memória da requisição. Chamado por definir(); exposto porque teste
+     * que grava direto na tabela precisa avisar.
+     */
+    public static function esquecer(): void
+    {
+        static::$memoria = null;
+    }
+
+    /**
+     * Liga/desliga gravado em tela, com o config como padrão.
+     *
+     * Guardado como '1'/'0' porque a coluna é texto: sem isto, "false" (string)
+     * seria verdadeiro, que é o erro clássico de flag em tabela chave/valor.
+     */
+    public static function booleano(string $chave, bool $padrao): bool
+    {
+        $valor = static::todas()[$chave] ?? null;
+
+        return $valor === null || $valor === '' ? $padrao : $valor === '1';
+    }
+
+    public static function definirBooleano(string $chave, bool $valor): void
+    {
+        static::definir($chave, $valor ? '1' : '0');
     }
 }

@@ -119,6 +119,12 @@ return [
         // tela em toda navegação. Serve para página dedicada ao assistente.
         'aberto' => false,
 
+        // Padrão do interruptor que fica na tela de configurações. O valor gravado
+        // lá vence este. Desligado, o botão some — mas só onde a aplicação usou
+        // ['flutuante' => true]; no card da página o chat continua, porque quem o
+        // colocou ali foi a aplicação, não uma configuração.
+        'ativo' => true,
+
     ],
 
     /*
@@ -132,6 +138,78 @@ return [
 
     // Voltas máximas do loop de tool use numa mesma pergunta.
     'max_iteracoes' => 5,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Endpoint para canais externos (WhatsApp e afins)
+    |--------------------------------------------------------------------------
+    |
+    | O mesmo assistente por HTTP, para um gateway de WhatsApp conversar com ele.
+    | Desligado por padrão: rota que passa a existir só por ter atualizado o
+    | pacote seria surpresa de segurança.
+    |
+    |   POST /claudinho/conversa           {canal, identificador, mensagem}
+    |   POST /claudinho/conversa/reiniciar {canal, identificador}
+    |
+    | Exige `php artisan migrate` (tabela claudinho_conversas) e um resolvedor.
+    |
+    */
+
+    'api' => [
+
+        'habilitado' => env('CLAUDINHO_API', false),
+
+        // Autentica o CHAMADOR (o gateway), não o usuário da conversa. Sem token
+        // o endpoint responde 503 em vez de ficar aberto por esquecimento.
+        'token' => env('CLAUDINHO_API_TOKEN'),
+
+        // Classe que implementa Rogga\Claudinho\Contracts\ResolvedorDeUsuario e diz
+        // qual usuário está do outro lado do número. É o item mais importante deste
+        // bloco: o endpoint autentica como ele, e daí em diante gates das
+        // ferramentas e Global Scopes valem igual ao chat em tela.
+        //
+        // Class-string e não closure porque closure não sobrevive a `config:cache`.
+        'resolvedor' => null,
+
+        'prefixo' => 'claudinho',
+
+        // O que roda ANTES do token. O middleware do token é sempre acrescentado
+        // pelo pacote — habilitar sem autenticar o chamador não é opção.
+        'middleware' => ['api'],
+
+        // Requisições por minuto, por IP. '' desliga.
+        'throttle' => '30,1',
+
+        // Silêncio maior que isto começa conversa nova. Histórico de horas atrás
+        // confunde o modelo mais do que ajuda, e encarece cada resposta.
+        'minutos_inatividade' => 30,
+
+        // Ferramentas que ALTERAM dados neste canal. Deixe false para o canal
+        // externo ficar somente-leitura sem desregistrar as ações, que continuam
+        // valendo na tela. Com true, a alteração pede confirmação por texto.
+        'acoes' => true,
+
+        // Prazo da confirmação pendente, mais curto que o da conversa: um "sim"
+        // solto tempo depois não pode autorizar alteração já esquecida.
+        'minutos_confirmacao' => 5,
+
+        // Só estas palavras aprovam, e o casamento é EXATO sobre o texto
+        // normalizado (minúsculas, sem acento, sem pontuação). "sim" aprova;
+        // "sim, pode cancelar" não. Casar por conteúdo faria "não, não confirmo"
+        // conter "confirmo" e autorizar o oposto do pedido. Qualquer resposta que
+        // não casa CANCELA a alteração — pendência viva esperaria um "sim" que
+        // pode chegar em outro assunto.
+        'palavras_confirmacao' => ['sim', 'confirmo', 'confirmar', 'autorizo'],
+
+        // Acrescentado ao fim do system prompt, só nas conversas deste canal. Por
+        // padrão desfaz a regra de tabela markdown, que o chat renderiza bem e o
+        // WhatsApp não.
+        'instrucoes' => 'Você está respondendo por um aplicativo de mensagens, não por uma tela: '
+            .'não use tabela markdown, título nem bloco de código. Para listar, use linhas curtas '
+            .'começando com hífen. Prefira respostas de até 4 linhas; se o assunto for longo, '
+            .'responda o essencial e ofereça detalhar.',
+
+    ],
 
     /*
     |--------------------------------------------------------------------------

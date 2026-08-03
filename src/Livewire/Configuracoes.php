@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Rogga\Claudinho\Livewire;
 
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Component;
 use Rogga\Claudinho\Models\Configuracao;
+use Throwable;
 
 /**
  * Cadastro das configurações que mudam sem deploy. Componente separado do Chat de
@@ -24,11 +26,19 @@ class Configuracoes extends Component
      */
     public string $chaveNova = '';
 
+    /** O botão flutuante aparece? Só tem efeito onde a aplicação colocou o componente. */
+    public bool $flutuante = true;
+
+    /** O endpoint aceita requisições? Só tem efeito onde a rota foi publicada. */
+    public bool $api = true;
+
     public function mount(): void
     {
         $this->autoriza();
 
         $this->modelo = (string) Configuracao::valor('model', config('claudinho.model'));
+        $this->flutuante = Configuracao::booleano('flutuante_ativo', (bool) config('claudinho.flutuante.ativo', true));
+        $this->api = Configuracao::booleano('api_ativa', true);
     }
 
     public function render()
@@ -52,6 +62,8 @@ class Configuracoes extends Component
         ]);
 
         Configuracao::definir('model', $this->modelo);
+        Configuracao::definirBooleano('flutuante_ativo', $this->flutuante);
+        Configuracao::definirBooleano('api_ativa', $this->api);
 
         if (filled($this->chaveNova)) {
             Configuracao::definir('api_key', trim($this->chaveNova));
@@ -96,6 +108,70 @@ class Configuracoes extends Component
         }
 
         return ['origem' => 'ausente', 'dica' => null];
+    }
+
+    /**
+     * Situação do endpoint neste ambiente, para a tela não oferecer um interruptor
+     * que não liga nada.
+     *
+     * Os dois níveis são de propósito. Publicar a rota é decisão de deploy
+     * (`api.habilitado`), porque criar um endpoint HTTP com acesso a dados não é
+     * coisa que se faça por formulário web. Ligar e desligar o atendimento é
+     * decisão de operação, e essa sim fica aqui.
+     *
+     * @return array{publicada: bool, ativa: bool, url: string|null, itens: array<int, array{ok: bool, texto: string}>}
+     */
+    public function situacaoApi(): array
+    {
+        $publicada = (bool) config('claudinho.api.habilitado', false);
+        $prefixo = trim((string) config('claudinho.api.prefixo', 'claudinho'), '/');
+        $resolvedor = (string) config('claudinho.api.resolvedor', '');
+
+        $itens = [
+            [
+                'ok' => $publicada,
+                'texto' => $publicada
+                    ? 'Rota publicada neste ambiente.'
+                    : 'Rota não publicada: defina CLAUDINHO_API=true no .env.',
+            ],
+            [
+                'ok' => filled(config('claudinho.api.token')),
+                'texto' => filled(config('claudinho.api.token'))
+                    ? 'Token do chamador configurado.'
+                    : 'Sem CLAUDINHO_API_TOKEN: o endpoint responde 503.',
+            ],
+            [
+                'ok' => $resolvedor !== '',
+                'texto' => $resolvedor !== ''
+                    ? 'Resolvedor de usuário: '.class_basename($resolvedor).'.'
+                    : 'Sem resolvedor: o endpoint não sabe de quem é a permissão.',
+            ],
+            [
+                'ok' => $this->tabelaDeConversas(),
+                'texto' => $this->tabelaDeConversas()
+                    ? 'Tabela de conversas migrada.'
+                    : 'Falta rodar php artisan migrate (tabela claudinho_conversas).',
+            ],
+        ];
+
+        return [
+            'publicada' => $publicada,
+            'ativa' => Configuracao::booleano('api_ativa', true),
+            'url' => $publicada ? url($prefixo.'/conversa') : null,
+            'itens' => $itens,
+        ];
+    }
+
+    /**
+     * Igual ao todas(): nada aqui pode derrubar a tela por causa de banco.
+     */
+    private function tabelaDeConversas(): bool
+    {
+        try {
+            return Schema::hasTable('claudinho_conversas');
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     /**

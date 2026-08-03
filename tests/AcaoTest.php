@@ -3,98 +3,11 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Auth;
+use Rogga\Claudinho\AcaoBase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
-use Rogga\Claudinho\AcaoBase;
-use Rogga\Claudinho\FerramentaBase;
-use Rogga\Claudinho\FerramentaRegistry;
 use Rogga\Claudinho\Livewire\Chat;
-
-class CancelarPedido extends AcaoBase
-{
-    /** @var array<int, array<string, mixed>> */
-    public static array $executadas = [];
-
-    protected ?string $permissao = 'pode_cancelar';
-
-    public function __construct(bool $confirmar = true, private bool $explode = false)
-    {
-        $this->confirmar = $confirmar;
-    }
-
-    public function nome(): string
-    {
-        return 'cancelar_pedido';
-    }
-
-    public function descricao(): string
-    {
-        return 'Cancela um pedido em aberto.';
-    }
-
-    public function propriedades(): array
-    {
-        return ['pedido' => ['type' => 'integer', 'description' => 'Id do pedido']];
-    }
-
-    public function obrigatorios(): array
-    {
-        return ['pedido'];
-    }
-
-    public function confirmacao(array $input): string
-    {
-        return "Cancelar o pedido {$input['pedido']}?";
-    }
-
-    public function executar(array $input): array
-    {
-        static::$executadas[] = $input;
-
-        if ($this->explode) {
-            throw new RuntimeException('conexão perdida no meio do update');
-        }
-
-        return ['cancelado' => $input['pedido']];
-    }
-}
-
-class BuscarPedido extends FerramentaBase
-{
-    public function nome(): string
-    {
-        return 'buscar_pedido';
-    }
-
-    public function descricao(): string
-    {
-        return 'Busca um pedido pelo id.';
-    }
-
-    public function propriedades(): array
-    {
-        return ['pedido' => ['type' => 'integer', 'description' => 'Id do pedido']];
-    }
-
-    public function executar(array $input): array
-    {
-        return ['pedido' => $input['pedido'], 'situacao' => 'em aberto'];
-    }
-}
-
-function registro(array $ferramentas): FerramentaRegistry
-{
-    $registro = new FerramentaRegistry;
-
-    foreach ($ferramentas as $ferramenta) {
-        $registro->registrar($ferramenta);
-    }
-
-    app()->instance(FerramentaRegistry::class, $registro);
-
-    return $registro;
-}
 
 /**
  * @return array<int, array<string, mixed>>

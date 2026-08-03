@@ -18,14 +18,7 @@ use Rogga\Claudinho\Models\Configuracao;
 // porque a trait roda no setUp, antes do skip abaixo — e o :memory: do testbench
 // já nasce vazio em cada teste, então não há o que reverter no fim.
 beforeEach(function () {
-    if (! extension_loaded('pdo_sqlite')) {
-        test()->markTestSkipped(
-            'Requer a extensão pdo_sqlite para o banco em memória do testbench: '
-            .'sudo apt install php8.3-sqlite3'
-        );
-    }
-
-    test()->artisan('migrate')->run();
+    exigeBanco();
 });
 
 /**
@@ -147,13 +140,26 @@ it('nunca coloca a chave gravada no HTML da tela', function () {
         ->toContain('sk-ant-a');
 });
 
-it('recusa a gravação de quem não tem a permissão', function () {
+it('recusa abrir as configurações para quem não tem a permissão', function () {
     comoAdmin(permitido: false);
 
-    Livewire::test(Configuracoes::class)
-        ->set('modelo', 'claude-opus-5')
-        ->call('salvar')
-        ->assertForbidden();
+    // O abort acontece no mount, então não dá para encadear set()/call() depois:
+    // sem componente montado, o Livewire responde 404 e esconderia o 403.
+    Livewire::test(Configuracoes::class)->assertForbidden();
+});
+
+it('revalida a permissão em cada gravação, não só ao montar', function () {
+    comoAdmin();
+
+    $componente = Livewire::test(Configuracoes::class);
+
+    // Permissão revogada com a tela já aberta. mount() roda uma vez; se salvar()
+    // não checasse por conta própria, a gravação passaria.
+    Gate::define('claudinho_admin', fn (): bool => false);
+
+    $componente->set('modelo', 'claude-opus-5')->call('salvar')->assertForbidden();
+
+    expect(Configuracao::valor('model'))->toBeNull();
 });
 
 it('rejeita chave curta demais para ser válida', function () {
@@ -194,6 +200,9 @@ function linhaIlegivel(string $chave, string $valor = 'valor-antigo'): void
         'created_at' => now(),
         'updated_at' => now(),
     ]);
+
+    // Insert direto na tabela não passa por definir(), então a memória fica velha.
+    Configuracao::esquecer();
 }
 
 it('regrava por cima de valor cifrado com outra APP_KEY', function () {
@@ -256,4 +265,113 @@ it('mantém selecionável um modelo fora da lista do config', function () {
 
     expect($disponiveis)->toHaveKey('claude-fable-5')
         ->and(array_key_first($disponiveis))->toBe('claude-fable-5');
+});
+
+/**
+ * ===========================================
+ * Interruptores de canal e documentação da API
+ * ===========================================
+ */
+it('grava e devolve os interruptores de canal', function () {
+    comoAdmin();
+
+    Livewire::test(Configuracoes::class)
+        ->assertSet('flutuante', true)
+        ->assertSet('api', true)
+        ->set('flutuante', false)
+        ->set('api', false)
+        ->call('salvar')
+        ->assertHasNoErrors();
+
+    expect(Configuracao::booleano('flutuante_ativo', true))->toBeFalse()
+        ->and(Configuracao::booleano('api_ativa', true))->toBeFalse();
+
+    // E voltam para a tela como foram gravados.
+    Livewire::test(Configuracoes::class)
+        ->assertSet('flutuante', false)
+        ->assertSet('api', false);
+});
+
+it('guarda booleano como 1/0, porque a coluna é texto', function () {
+    Configuracao::definirBooleano('api_ativa', false);
+
+    // "false" em texto seria verdadeiro — o erro clássico de flag em tabela
+    // chave/valor. O valor cru precisa ser '0'.
+    expect(Configuracao::valor('api_ativa'))->toBe('0')
+        ->and(Configuracao::booleano('api_ativa', true))->toBeFalse();
+
+    Configuracao::definirBooleano('api_ativa', true);
+
+    expect(Configuracao::booleano('api_ativa', false))->toBeTrue();
+});
+
+it('cai no config quando o interruptor nunca foi gravado', function () {
+    config()->set('claudinho.flutuante.ativo', false);
+
+    comoAdmin();
+
+    Livewire::test(Configuracoes::class)->assertSet('flutuante', false);
+});
+
+it('esconde o botão flutuante quando desligado em tela', function () {
+    Configuracao::definirBooleano('flutuante_ativo', false);
+
+    Livewire::test(Chat::class, ['flutuante' => true])
+        ->assertDontSee('Abrir o assistente')
+        ->assertDontSee('role="dialog"', false);
+
+    // O card na página não obedece a este interruptor: quem o colocou ali foi a
+    // aplicação, e não cabe a uma configuração de tela escondê-lo.
+    Livewire::test(Chat::class)->assertSee('wire:submit="enviar"', false);
+});
+
+it('mostra o botão flutuante de volta quando religado', function () {
+    Configuracao::definirBooleano('flutuante_ativo', false);
+    Livewire::test(Chat::class, ['flutuante' => true])->assertDontSee('Abrir o assistente');
+
+    Configuracao::definirBooleano('flutuante_ativo', true);
+    Livewire::test(Chat::class, ['flutuante' => true])->assertSee('Abrir o assistente');
+});
+
+it('diagnostica o que falta para a API funcionar', function () {
+    comoAdmin();
+    config()->set('claudinho.api.habilitado', false);
+    config()->set('claudinho.api.token', null);
+    config()->set('claudinho.api.resolvedor', null);
+
+    $situacao = Livewire::test(Configuracoes::class)->instance()->situacaoApi();
+
+    expect($situacao['publicada'])->toBeFalse()
+        ->and($situacao['url'])->toBeNull()
+        ->and(collect($situacao['itens'])->pluck('ok')->all())->toBe([false, false, false, true]);
+
+    $textos = collect($situacao['itens'])->pluck('texto')->implode(' ');
+
+    expect($textos)->toContain('CLAUDINHO_API=true')
+        ->toContain('CLAUDINHO_API_TOKEN')
+        ->toContain('Sem resolvedor');
+});
+
+it('mostra a URL real do ambiente na documentação', function () {
+    comoAdmin();
+    config()->set('claudinho.api.habilitado', true);
+    config()->set('claudinho.api.prefixo', 'bot/v1');
+
+    $componente = Livewire::test(Configuracoes::class);
+
+    expect($componente->instance()->situacaoApi()['url'])->toEndWith('/bot/v1/conversa');
+
+    // Documentação embutida, e não link: só ela sabe a URL deste ambiente.
+    $componente->assertSee('Documentação da API')->assertSee('bot/v1/conversa');
+});
+
+it('não deixa ligar a API pela tela quando a rota não foi publicada', function () {
+    comoAdmin();
+    config()->set('claudinho.api.habilitado', false);
+
+    // Publicar endpoint HTTP com acesso a dados é decisão de deploy, não de
+    // formulário web. A tela desabilita e explica o que falta.
+    Livewire::test(Configuracoes::class)
+        ->assertSee('disabled')
+        ->assertSee('a rota não está publicada neste ambiente');
 });

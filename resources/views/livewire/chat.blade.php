@@ -56,7 +56,7 @@
         })();
     </script>
 
-    @if ($flutuante)
+    @if ($flutuante && $this->flutuanteVisivel())
         @php($config = (array) config('claudinho.flutuante', []))
         @php($aEsquerda = ($config['posicao'] ?? 'direita') === 'esquerda')
         @php($rotulo = $config['rotulo'] ?? 'Abrir o assistente')
@@ -152,8 +152,15 @@
 
             <button type="button" x-show="! aberto" x-on:click="abrir()" x-bind:aria-expanded="aberto ? 'true' : 'false'"
                 title="{{ $rotulo }}" aria-label="{{ $rotulo }}"
+                {{-- #d3754c é o terracota da própria marca (antenas e olho), em hex literal
+                     e não num laranja aproximado do Tailwind: a borda existe para amarrar o
+                     botão ao ícone, então tem de ser o mesmo tom. Sem variante dark: a marca
+                     também não troca essa cor entre os temas.
+
+                     O anel de foco continua sky, de propósito — foco precisa se distinguir
+                     do estado de repouso, e um anel laranja sobre borda laranja não se vê. --}}
                 @class([
-                    'fixed z-40 bottom-6 inline-flex items-center justify-center w-14 h-14 transition bg-white rounded-full shadow-lg ring-1 ring-sky-600/30 hover:bg-gray-50 hover:ring-sky-600/60 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:bg-gray-900 dark:ring-sky-400/30 dark:hover:bg-gray-800 dark:hover:ring-sky-400/60 dark:focus:ring-offset-gray-900',
+                    'fixed z-40 bottom-6 inline-flex items-center justify-center w-14 h-14 transition bg-white rounded-full shadow-lg ring-2 ring-[#d3754c] hover:bg-gray-50 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:bg-gray-900 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900',
                     'left-6' => $aEsquerda,
                     'right-6' => !$aEsquerda,
                 ])>
@@ -170,7 +177,7 @@
                 </span>
             </button>
         </div>
-    @else
+    @elseif (! $flutuante)
         @include('claudinho::livewire.partials.card', ['flutuante' => false])
     @endif
 
