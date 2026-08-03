@@ -157,10 +157,13 @@
                      botão ao ícone, então tem de ser o mesmo tom. Sem variante dark: a marca
                      também não troca essa cor entre os temas.
 
-                     O anel de foco continua sky, de propósito — foco precisa se distinguir
-                     do estado de repouso, e um anel laranja sobre borda laranja não se vê. --}}
+                     1px a 50% é acento, não contorno — fica em 1,7:1 sobre branco, abaixo do
+                     3:1 de elemento de interface. É aceitável porque não é o anel que
+                     identifica o botão: o círculo branco, a sombra e a marca dentro fazem
+                     isso. O que precisa saltar é o FOCO, e esse continua sky-500 em 2px,
+                     intocado — anel laranja sobre borda laranja não se veria. --}}
                 @class([
-                    'fixed z-40 bottom-6 inline-flex items-center justify-center w-14 h-14 transition bg-white rounded-full shadow-lg ring-2 ring-[#d3754c] hover:bg-gray-50 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:bg-gray-900 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900',
+                    'fixed z-40 bottom-6 inline-flex items-center justify-center w-14 h-14 transition bg-white rounded-full shadow-lg ring-1 ring-[#d3754c]/50 hover:bg-gray-50 hover:ring-[#d3754c] hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:bg-gray-900 dark:hover:bg-gray-800 dark:focus:ring-offset-gray-900',
                     'left-6' => $aEsquerda,
                     'right-6' => !$aEsquerda,
                 ])>

@@ -73,19 +73,24 @@ class ClaudinhoServiceProvider extends ServiceProvider
     }
 
     /**
-     * O endpoint para canais externos. Desligado por padrão: rota de escrita que
-     * passa a existir só por ter atualizado o pacote seria surpresa de segurança.
+     * O endpoint para canais externos.
      *
-     * O middleware do token vem sempre, e não como opção da aplicação — habilitar o
-     * endpoint sem autenticar o chamador não é uma configuração que faça sentido
-     * oferecer. O que a aplicação escolhe é o que vem ANTES dele.
+     * As rotas são registradas SEMPRE, e quem liga ou desliga é o middleware. O
+     * boot roda em toda requisição da aplicação, então decidir aqui exigiria ler o
+     * banco em página que nunca fala com o Claudinho — e é o banco que guarda o
+     * interruptor da tela.
+     *
+     * Rota existir com o endpoint desligado não é brecha: o middleware recusa antes
+     * de qualquer processamento, e a recusa vem DEPOIS da checagem de token, então
+     * quem não se autenticou recebe 401 e não descobre sequer se existe endpoint
+     * aqui. O padrão continua desligado.
+     *
+     * O middleware do token vem sempre, e não como opção da aplicação — endpoint
+     * sem autenticar o chamador não é configuração que faça sentido oferecer. O que
+     * a aplicação escolhe é o que vem ANTES dele.
      */
     private function registraRotas(): void
     {
-        if (! config('claudinho.api.habilitado', false)) {
-            return;
-        }
-
         $throttle = (string) config('claudinho.api.throttle', '30,1');
 
         Route::prefix((string) config('claudinho.api.prefixo', 'claudinho'))

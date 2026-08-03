@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
+use Illuminate\Foundation\Auth\User;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\TestResponse;
+use Livewire\Livewire;
+use Rogga\Claudinho\Livewire\Configuracoes;
 use Rogga\Claudinho\Models\Configuracao;
 use Rogga\Claudinho\Models\ConversaExterna;
 
@@ -304,4 +307,65 @@ it('volta a atender quando religado', function () {
     fakeStreams(rodadaTexto('São 12 obras ativas.'));
 
     conversar('quantas obras ativas?')->assertOk();
+});
+
+it('liga o endpoint inteiro pela tela, sem nada no .env', function () {
+    // Este é o caminho que a tela promete: sem CLAUDINHO_API e sem
+    // CLAUDINHO_API_TOKEN, só o resolvedor (que é classe, e por isso é código).
+    config()->set('claudinho.api.habilitado', false);
+    config()->set('claudinho.api.token', null);
+
+    Gate::define('claudinho_admin', fn (): bool => true);
+    test()->actingAs((new class extends User
+    {
+        protected $table = 'users';
+    })->forceFill(['id' => 1, 'name' => 'Admin']));
+
+    // Sem token e desligado, o endpoint não atende.
+    conversar('oi')->assertStatus(503);
+
+    $tela = Livewire::test(Configuracoes::class);
+    $tela->call('gerarToken');
+    $token = $tela->get('tokenGerado');
+    $tela->set('api', true)->call('salvar');
+
+    fakeStreams(rodadaTexto('São 12 obras ativas.'));
+
+    test()->withToken($token)
+        ->postJson('/claudinho/conversa', [
+            'canal' => 'whatsapp',
+            'identificador' => '5547999998888',
+            'mensagem' => 'quantas obras ativas?',
+        ])
+        ->assertOk()
+        ->assertJsonPath('resposta', 'São 12 obras ativas.');
+});
+
+it('para de atender assim que o token é revogado', function () {
+    Gate::define('claudinho_admin', fn (): bool => true);
+    test()->actingAs((new class extends User
+    {
+        protected $table = 'users';
+    })->forceFill(['id' => 1, 'name' => 'Admin']));
+
+    $tela = Livewire::test(Configuracoes::class);
+    $tela->call('gerarToken');
+    $token = $tela->get('tokenGerado');
+    $tela->set('api', true)->call('salvar');
+
+    fakeStreams(rodadaTexto('oi'));
+
+    $requisicao = fn () => test()->withToken($token)->postJson('/claudinho/conversa', [
+        'canal' => 'whatsapp', 'identificador' => '5547999998888', 'mensagem' => 'oi',
+    ]);
+
+    $requisicao()->assertOk();
+
+    $tela->call('revogarToken');
+
+    // Sem token gravado, o config volta a valer — e o TestCase não define nenhum
+    // aqui, então o endpoint fica sem token e recusa.
+    config()->set('claudinho.api.token', null);
+
+    $requisicao()->assertStatus(503);
 });

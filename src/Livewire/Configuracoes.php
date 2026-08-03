@@ -6,6 +6,7 @@ namespace Rogga\Claudinho\Livewire;
 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Livewire\Component;
 use Rogga\Claudinho\Models\Configuracao;
 use Throwable;
@@ -29,8 +30,17 @@ class Configuracoes extends Component
     /** O botão flutuante aparece? Só tem efeito onde a aplicação colocou o componente. */
     public bool $flutuante = true;
 
-    /** O endpoint aceita requisições? Só tem efeito onde a rota foi publicada. */
-    public bool $api = true;
+    /** O endpoint aceita requisições? */
+    public bool $api = false;
+
+    /**
+     * Token recém-gerado, mostrado UMA vez.
+     *
+     * Ao contrário da chave do Claude, este segredo precisa ser lido: quem opera
+     * tem de copiá-lo para o gateway. Some na próxima interação, e depois só resta
+     * a máscara — perdeu, gera outro.
+     */
+    public string $tokenGerado = '';
 
     public function mount(): void
     {
@@ -38,7 +48,55 @@ class Configuracoes extends Component
 
         $this->modelo = (string) Configuracao::valor('model', config('claudinho.model'));
         $this->flutuante = Configuracao::booleano('flutuante_ativo', (bool) config('claudinho.flutuante.ativo', true));
-        $this->api = Configuracao::booleano('api_ativa', true);
+        $this->api = Configuracao::booleano('api_ativa', (bool) config('claudinho.api.habilitado', false));
+    }
+
+    /**
+     * Gera o token do chamador. Gerado e não digitado: é segredo de máquina, e
+     * senha escolhida por gente aqui seria fraca sem necessidade.
+     */
+    public function gerarToken(): void
+    {
+        $this->autoriza();
+
+        $this->tokenGerado = 'clau_'.Str::random(48);
+
+        Configuracao::definir('api_token', $this->tokenGerado);
+
+        $this->dispatch('claudinho-configuracoes-salvas');
+    }
+
+    public function revogarToken(): void
+    {
+        $this->autoriza();
+
+        Configuracao::definir('api_token', null);
+
+        $this->tokenGerado = '';
+
+        $this->dispatch('claudinho-configuracoes-salvas');
+    }
+
+    /**
+     * De onde o token do chamador vem, sem revelá-lo.
+     *
+     * @return array{origem: 'tela'|'env'|'ausente', dica: string|null}
+     */
+    public function tokenEmUso(): array
+    {
+        $daTela = Configuracao::valor('api_token');
+
+        if (filled($daTela)) {
+            return ['origem' => 'tela', 'dica' => $this->mascara($daTela)];
+        }
+
+        $doEnv = config('claudinho.api.token');
+
+        if (filled($doEnv)) {
+            return ['origem' => 'env', 'dica' => $this->mascara((string) $doEnv)];
+        }
+
+        return ['origem' => 'ausente', 'dica' => null];
     }
 
     public function render()
@@ -70,6 +128,8 @@ class Configuracoes extends Component
         }
 
         $this->chaveNova = '';
+        // O token só aparece na resposta em que foi gerado.
+        $this->tokenGerado = '';
 
         $this->dispatch('claudinho-configuracoes-salvas');
     }
@@ -111,53 +171,55 @@ class Configuracoes extends Component
     }
 
     /**
-     * Situação do endpoint neste ambiente, para a tela não oferecer um interruptor
-     * que não liga nada.
+     * O que ainda falta para o endpoint atender, em linguagem de quem opera.
      *
-     * Os dois níveis são de propósito. Publicar a rota é decisão de deploy
-     * (`api.habilitado`), porque criar um endpoint HTTP com acesso a dados não é
-     * coisa que se faça por formulário web. Ligar e desligar o atendimento é
-     * decisão de operação, e essa sim fica aqui.
+     * Três dos quatro itens se resolvem nesta tela. O quarto é o resolvedor de
+     * usuário, que é uma CLASSE e por isso não tem como vir de formulário: é ele
+     * que responde de quem é a permissão sobre os dados de cada número.
      *
-     * @return array{publicada: bool, ativa: bool, url: string|null, itens: array<int, array{ok: bool, texto: string}>}
+     * @return array{ativa: bool, pronta: bool, url: string, itens: array<int, array{ok: bool, texto: string}>}
      */
     public function situacaoApi(): array
     {
-        $publicada = (bool) config('claudinho.api.habilitado', false);
         $prefixo = trim((string) config('claudinho.api.prefixo', 'claudinho'), '/');
         $resolvedor = (string) config('claudinho.api.resolvedor', '');
+        $temToken = $this->tokenEmUso()['origem'] !== 'ausente';
+        $temTabela = $this->tabelaDeConversas();
 
         $itens = [
             [
-                'ok' => $publicada,
-                'texto' => $publicada
-                    ? 'Rota publicada neste ambiente.'
-                    : 'Rota não publicada: defina CLAUDINHO_API=true no .env.',
+                'ok' => $this->api,
+                'texto' => $this->api
+                    ? 'Atendimento ligado.'
+                    : 'Atendimento desligado: o endpoint responde 503.',
             ],
             [
-                'ok' => filled(config('claudinho.api.token')),
-                'texto' => filled(config('claudinho.api.token'))
-                    ? 'Token do chamador configurado.'
-                    : 'Sem CLAUDINHO_API_TOKEN: o endpoint responde 503.',
+                'ok' => $temToken,
+                'texto' => $temToken
+                    ? 'Token do chamador definido.'
+                    : 'Sem token: gere um abaixo, senão o endpoint responde 503.',
             ],
             [
+                // Único item que só o código resolve: é uma classe, não tem como vir
+                // de um formulário.
                 'ok' => $resolvedor !== '',
                 'texto' => $resolvedor !== ''
                     ? 'Resolvedor de usuário: '.class_basename($resolvedor).'.'
-                    : 'Sem resolvedor: o endpoint não sabe de quem é a permissão.',
+                    : 'Falta a classe resolvedora em claudinho.api.resolvedor — sem ela o '
+                        .'endpoint não sabe de quem é a permissão.',
             ],
             [
-                'ok' => $this->tabelaDeConversas(),
-                'texto' => $this->tabelaDeConversas()
+                'ok' => $temTabela,
+                'texto' => $temTabela
                     ? 'Tabela de conversas migrada.'
                     : 'Falta rodar php artisan migrate (tabela claudinho_conversas).',
             ],
         ];
 
         return [
-            'publicada' => $publicada,
-            'ativa' => Configuracao::booleano('api_ativa', true),
-            'url' => $publicada ? url($prefixo.'/conversa') : null,
+            'ativa' => $this->api,
+            'pronta' => ! in_array(false, array_column($itens, 'ok'), true),
+            'url' => url($prefixo.'/conversa'),
             'itens' => $itens,
         ];
     }

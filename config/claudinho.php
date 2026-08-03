@@ -145,22 +145,25 @@ return [
     |--------------------------------------------------------------------------
     |
     | O mesmo assistente por HTTP, para um gateway de WhatsApp conversar com ele.
-    | Desligado por padrão: rota que passa a existir só por ter atualizado o
-    | pacote seria surpresa de segurança.
     |
     |   POST /claudinho/conversa           {canal, identificador, mensagem}
     |   POST /claudinho/conversa/reiniciar {canal, identificador}
     |
-    | Exige `php artisan migrate` (tabela claudinho_conversas) e um resolvedor.
+    | Ligar e gerar o token se faz pela TELA de configurações — estas chaves são
+    | só o padrão para quem prefere ambiente. Exige `php artisan migrate` e o
+    | resolvedor abaixo, que é classe e por isso não vem de formulário.
     |
     */
 
     'api' => [
 
+        // Padrão do interruptor da tela, cujo valor gravado vence este. false para
+        // atualizar o pacote não abrir endpoint em ambiente nenhum.
         'habilitado' => env('CLAUDINHO_API', false),
 
-        // Autentica o CHAMADOR (o gateway), não o usuário da conversa. Sem token
-        // o endpoint responde 503 em vez de ficar aberto por esquecimento.
+        // Autentica o CHAMADOR (o gateway), não o usuário da conversa. Também é só
+        // o padrão: a tela gera e guarda o token, criptografado. Sem token de lado
+        // nenhum, o endpoint responde 503 em vez de ficar aberto por esquecimento.
         'token' => env('CLAUDINHO_API_TOKEN'),
 
         // Classe que implementa Rogga\Claudinho\Contracts\ResolvedorDeUsuario e diz

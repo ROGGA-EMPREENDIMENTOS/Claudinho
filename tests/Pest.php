@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Foundation\Auth\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Rogga\Claudinho\AcaoBase;
-use Rogga\Claudinho\FerramentaBase;
 use Rogga\Claudinho\Contracts\ResolvedorDeUsuario;
+use Rogga\Claudinho\FerramentaBase;
 use Rogga\Claudinho\FerramentaRegistry;
+use Rogga\Claudinho\Models\Configuracao;
 use Rogga\Claudinho\Tests\TestCase;
 
 uses(TestCase::class)->in(__DIR__);
@@ -30,8 +33,8 @@ function sseBody(array $eventos): string
 
 function fakeStream(array $eventos): void
 {
-    Illuminate\Support\Facades\Http::fake([
-        'api.anthropic.com/v1/messages' => Illuminate\Support\Facades\Http::response(sseBody($eventos)),
+    Http::fake([
+        'api.anthropic.com/v1/messages' => Http::response(sseBody($eventos)),
     ]);
 }
 
@@ -41,13 +44,13 @@ function fakeStream(array $eventos): void
  */
 function fakeStreams(array ...$rodadas): void
 {
-    $sequencia = Illuminate\Support\Facades\Http::sequence();
+    $sequencia = Http::sequence();
 
     foreach ($rodadas as $eventos) {
         $sequencia->push(sseBody($eventos));
     }
 
-    Illuminate\Support\Facades\Http::fake(['api.anthropic.com/v1/messages' => $sequencia]);
+    Http::fake(['api.anthropic.com/v1/messages' => $sequencia]);
 }
 
 /**
@@ -97,7 +100,7 @@ function eventosDe(Generator $stream): array
 function exigeBanco(): void
 {
     try {
-        Illuminate\Support\Facades\DB::connection()->getPdo();
+        DB::connection()->getPdo();
     } catch (Throwable $th) {
         test()->markTestSkipped('Requer um banco acessível para o testbench: '.$th->getMessage());
     }
@@ -109,7 +112,7 @@ function exigeBanco(): void
     test()->artisan('migrate:fresh')->run();
 
     // A memória de requisição do Configuracao é estática e atravessaria os testes.
-    Rogga\Claudinho\Models\Configuracao::esquecer();
+    Configuracao::esquecer();
 }
 
 /*

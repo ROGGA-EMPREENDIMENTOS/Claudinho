@@ -9,7 +9,11 @@
     // arredondados no mobile porque lá ele ocupa a tela inteira. A borda usa o
     // terracota da marca (o mesmo #d3754c das antenas), para o painel e o botão
     // lerem como a mesma coisa em cima do conteúdo da aplicação.
-    'w-full h-full min-h-0 shadow-2xl sm:rounded-lg border-[#d3754c]' => $flutuante,
+    //
+    // A 50%, como o anel do botão: quem separa o painel da página é a sombra
+    // (shadow-2xl) mais o próprio fundo, não a linha. Borda saturada em volta de
+    // uma área grande vira moldura e briga com a conversa lá dentro.
+    'w-full h-full min-h-0 shadow-2xl sm:rounded-lg border-[#d3754c]/50' => $flutuante,
 ])>
         <section class="flex items-center justify-between gap-3 px-4 py-2 border-b border-gray-100 dark:border-gray-800">
             <span class="flex items-center min-w-0 gap-2.5">

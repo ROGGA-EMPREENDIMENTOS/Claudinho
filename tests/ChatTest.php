@@ -353,9 +353,15 @@ it('usa o terracota da marca na borda do flutuante, não um laranja qualquer', f
     // Mesmo hex das antenas do ícone: a borda existe para amarrar o botão e o
     // painel à marca, então aproximar por uma cor do Tailwind quebraria o vínculo.
     expect($html)
-        ->toContain('ring-2 ring-[#d3754c]')
-        ->toContain('border-[#d3754c]')
-        // O anel de foco segue sky: foco tem de se distinguir do repouso.
+        // Acento a 50%, não contorno: quem identifica o botão é o círculo branco com
+        // a marca dentro, e quem separa o painel da página é a sombra.
+        ->toContain('ring-1 ring-[#d3754c]/50')
+        ->toContain('border-[#d3754c]/50')
+        // No hover a cor fecha, para o alvo responder ao ponteiro.
+        ->toContain('hover:ring-[#d3754c]')
+        // O anel de FOCO segue sky e cheio: é ele que precisa saltar, e é ele que
+        // tem exigência de contraste.
+        ->toContain('focus:ring-2')
         ->toContain('focus:ring-sky-500')
         ->not->toContain('ring-sky-600/30');
 });

@@ -21,15 +21,22 @@ beforeEach(function () {
     ResolvedorFake::$conhecidos = ['5547999998888' => 7];
 });
 
-it('não registra rota nenhuma enquanto o endpoint está desligado', function () {
-    // Padrão do config é false: rota de escrita que passa a existir só por ter
-    // atualizado o pacote seria surpresa de segurança.
-    expect(Route::has('claudinho.conversa'))->toBeFalse();
-
-    comEndpoint();
-
+it('registra as rotas sempre, e quem liga ou desliga é o middleware', function () {
+    // Decidir isto no boot exigiria ler o banco em TODA requisição da aplicação, e
+    // é o banco que guarda o interruptor da tela. Rota existir com o endpoint
+    // desligado não é brecha: o middleware recusa antes de qualquer processamento,
+    // e depois do token — quem não se autenticou recebe 401 nos dois casos.
     expect(Route::has('claudinho.conversa'))->toBeTrue()
         ->and(Route::has('claudinho.conversa.reiniciar'))->toBeTrue();
+});
+
+it('não vaza pela resposta se o endpoint está ligado, para quem não tem token', function () {
+    comEndpoint(['claudinho.api.habilitado' => false]);
+
+    // Mesmo 401 do endpoint ligado: a resposta não serve de sensor de estado.
+    test()->postJson('/claudinho/conversa', [
+        'canal' => 'whatsapp', 'identificador' => '5547999998888', 'mensagem' => 'oi',
+    ])->assertStatus(401);
 });
 
 it('recusa requisição sem token', function () {

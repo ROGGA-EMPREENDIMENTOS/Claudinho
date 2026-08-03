@@ -23,7 +23,9 @@ class AutenticaCanal
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $esperado = (string) config('claudinho.api.token', '');
+        // Gravado em tela vence o config, como em todo o resto do pacote. É o que
+        // permite ligar o endpoint sem tocar no .env.
+        $esperado = (string) Configuracao::valor('api_token', config('claudinho.api.token'));
 
         // Token em branco não libera: seria um endpoint aberto por esquecimento de
         // configurar, que é exatamente o acidente a evitar.
@@ -37,13 +39,16 @@ class AutenticaCanal
         // pelo tempo de resposta.
         abort_unless($recebido !== '' && hash_equals($esperado, $recebido), 401, 'Token inválido.');
 
-        // Interruptor de operação, gravado em tela. Checado aqui, e não no boot do
-        // provider: o boot roda em TODA requisição da aplicação, e ler o banco lá
-        // custaria consulta em página que nunca fala com o Claudinho. Aqui só custa
-        // quando alguém bate no endpoint. Fica depois do token de propósito — quem
-        // não se autenticou não descobre se o atendimento está ligado.
+        // O interruptor da tela. Checado aqui, e não no boot do provider: o boot roda
+        // em TODA requisição da aplicação, e ler o banco lá custaria consulta em
+        // página que nunca fala com o Claudinho. Aqui só custa quando alguém bate no
+        // endpoint.
+        //
+        // Depois do token de propósito: assim quem não se autenticou recebe 401
+        // esteja o endpoint ligado ou desligado, e não consegue usar a resposta para
+        // descobrir se existe endpoint neste ambiente.
         abort_unless(
-            Configuracao::booleano('api_ativa', true),
+            Configuracao::booleano('api_ativa', (bool) config('claudinho.api.habilitado', false)),
             503,
             'O atendimento por este canal está desligado nas configurações do Claudinho.'
         );

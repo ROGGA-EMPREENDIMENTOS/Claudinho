@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
+use Illuminate\Foundation\Auth\User;
 use Illuminate\Support\Facades\Auth;
-use Rogga\Claudinho\AcaoBase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
+use Rogga\Claudinho\AcaoBase;
 use Rogga\Claudinho\Livewire\Chat;
 
 /**
@@ -31,7 +32,7 @@ beforeEach(function () {
     CancelarPedido::$executadas = [];
 
     Gate::define('pode_cancelar', fn () => true);
-    Auth::setUser(new Illuminate\Foundation\Auth\User);
+    Auth::setUser(new User);
 });
 
 it('marca na descrição enviada ao modelo que a ferramenta altera dados', function () {

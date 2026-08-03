@@ -80,20 +80,25 @@ Aparece só para quem passa no gate `permissao_admin` (padrão `claudinho_admin`
 | Interruptor | O que faz | O que **não** faz |
 |---|---|---|
 | **Botão flutuante do chat** | Some com o botão do canto sem tirar o componente do layout. | Não afeta o chat que a aplicação colocou dentro de uma página — quem o pôs ali foi a aplicação, e não cabe a uma tela escondê-lo. |
-| **Atendimento pela API** | O endpoint passa a responder 503 e nenhuma conversa externa é atendida. | Não publica a rota. Se `api.habilitado` for false, o interruptor aparece desabilitado, explicando o que falta. |
+| **Atendimento pela API** | Liga o endpoint. Desligado, ele responde 503 e nenhuma conversa externa é atendida. | Não dispensa o **resolvedor de usuário** — esse é uma classe, e por isso continua sendo código. |
 
-A separação em dois níveis no caso da API é deliberada: **publicar** um endpoint HTTP com
-acesso a dados é decisão de deploy (`CLAUDINHO_API=true`), porque não é coisa que se faça por
-formulário web; **ligar e desligar o atendimento** é decisão de operação, e essa fica na tela.
-O interruptor é lido no middleware, não no boot do provider — ler o banco no boot custaria uma
-consulta em toda requisição da aplicação, inclusive nas que nunca falam com o Claudinho.
+A tela também **gera o token** do chamador, guardado criptografado como a chave do Claude. Ou
+seja: ligar a API não exige mexer no `.env`. As chaves `api.habilitado` e `api.token` do
+config viraram apenas o *padrão* — o valor gravado em tela vence, como no resto do pacote.
 
-### Documentação da API na própria tela
+Duas notas sobre como isso funciona por baixo:
 
-A seção *Documentação da API* é embutida em vez de link, porque só ela sabe a URL **deste**
-ambiente. Além do contrato e de um `curl` pronto com o endereço real, ela funciona como
-diagnóstico, marcando o que ainda falta: rota publicada, token do chamador, resolvedor de
-usuário e migration da tabela de conversas.
+- **As rotas são registradas sempre**, e quem liga ou desliga é o middleware. Decidir isso no
+  boot exigiria ler o banco em toda requisição da aplicação, inclusive nas que nunca falam com
+  o Claudinho — e é o banco que guarda o interruptor. A rota existir desligada não é brecha: o
+  middleware recusa antes de qualquer processamento, e **depois** da checagem de token, então
+  quem não se autenticou recebe 401 nos dois casos e não descobre se há endpoint ali.
+- **O token aparece uma vez só**, na resposta em que é gerado. Diferente da chave do Claude,
+  este segredo precisa ser lido — quem opera tem de copiá-lo para o gateway. Depois disso só
+  resta a máscara; perdeu, gera outro (o anterior para de valer na hora).
+
+> Sem trava de `.env`, quem passa no gate `permissao_admin` pode abrir um endpoint HTTP com
+> acesso aos dados. Vale conferir quem tem essa permissão.
 
 A precedência é: o que foi gravado em tela vence o `config`/`.env`; valor vazio em tela cai
 no `.env` de novo — é o que o botão *Limpar* faz. Assim um ambiente pode continuar 100%
@@ -121,6 +126,13 @@ sem conexão, tudo cai no `.env` em silêncio, e o chat continua funcionando.
 O select de modelos vem de `config('claudinho.modelos')` — é só a lista da UI, edite à
 vontade. Um modelo gravado que saiu da lista continua selecionável, para o select não trocar
 o modelo de produção sozinho.
+
+### Documentação da API na própria tela
+
+A seção *Documentação da API* é embutida em vez de link, porque só ela sabe a URL **deste**
+ambiente. Além do contrato e de um `curl` pronto com o endereço real, ela funciona como
+diagnóstico, marcando o que ainda falta: atendimento ligado, token do chamador, resolvedor de
+usuário e migration da tabela de conversas. Três dos quatro se resolvem ali mesmo.
 
 ## Tema claro e escuro
 
@@ -288,8 +300,6 @@ Class-string no config e não closure, porque closure não sobrevive a `config:c
 ```php
 // config/claudinho.php
 'api' => [
-    'habilitado' => env('CLAUDINHO_API', false),
-    'token' => env('CLAUDINHO_API_TOKEN'),
     'resolvedor' => App\Claudinho\ResolvedorPorTelefone::class,
 ],
 ```
@@ -297,6 +307,9 @@ Class-string no config e não closure, porque closure não sobrevive a `config:c
 ```bash
 php artisan migrate   # tabela claudinho_conversas
 ```
+
+O resto — ligar o atendimento e gerar o token — sai pela engrenagem do chat, sem `.env` e sem
+deploy. Ver [Configurações em tela](#configurações-em-tela).
 
 ### A resposta
 

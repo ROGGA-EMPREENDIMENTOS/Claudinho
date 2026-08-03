@@ -277,7 +277,14 @@ it('grava e devolve os interruptores de canal', function () {
 
     Livewire::test(Configuracoes::class)
         ->assertSet('flutuante', true)
-        ->assertSet('api', true)
+        // O padrão do atendimento é DESLIGADO: atualizar o pacote não abre endpoint.
+        ->assertSet('api', false)
+        ->set('api', true)
+        ->call('salvar');
+
+    expect(Configuracao::booleano('api_ativa', false))->toBeTrue();
+
+    Livewire::test(Configuracoes::class)
         ->set('flutuante', false)
         ->set('api', false)
         ->call('salvar')
@@ -335,21 +342,35 @@ it('mostra o botão flutuante de volta quando religado', function () {
 
 it('diagnostica o que falta para a API funcionar', function () {
     comoAdmin();
-    config()->set('claudinho.api.habilitado', false);
     config()->set('claudinho.api.token', null);
     config()->set('claudinho.api.resolvedor', null);
 
     $situacao = Livewire::test(Configuracoes::class)->instance()->situacaoApi();
 
-    expect($situacao['publicada'])->toBeFalse()
-        ->and($situacao['url'])->toBeNull()
+    // Desligado, sem token, sem resolvedor — só a migration está feita.
+    expect($situacao['pronta'])->toBeFalse()
         ->and(collect($situacao['itens'])->pluck('ok')->all())->toBe([false, false, false, true]);
 
     $textos = collect($situacao['itens'])->pluck('texto')->implode(' ');
 
-    expect($textos)->toContain('CLAUDINHO_API=true')
-        ->toContain('CLAUDINHO_API_TOKEN')
-        ->toContain('Sem resolvedor');
+    expect($textos)->toContain('Atendimento desligado')
+        ->toContain('Sem token')
+        // O resolvedor é o único item que a tela não resolve: é uma classe.
+        ->toContain('claudinho.api.resolvedor');
+});
+
+it('fica pronta quando tudo foi resolvido em tela, menos o resolvedor que é código', function () {
+    comoAdmin();
+    config()->set('claudinho.api.resolvedor', ResolvedorFake::class);
+
+    $componente = Livewire::test(Configuracoes::class)->set('api', true)->call('salvar');
+
+    $componente->call('gerarToken');
+
+    $situacao = $componente->instance()->situacaoApi();
+
+    expect($situacao['pronta'])->toBeTrue()
+        ->and($situacao['ativa'])->toBeTrue();
 });
 
 it('mostra a URL real do ambiente na documentação', function () {
@@ -365,13 +386,75 @@ it('mostra a URL real do ambiente na documentação', function () {
     $componente->assertSee('Documentação da API')->assertSee('bot/v1/conversa');
 });
 
-it('não deixa ligar a API pela tela quando a rota não foi publicada', function () {
+it('gera o token, mostra uma vez e guarda mascarado', function () {
     comoAdmin();
-    config()->set('claudinho.api.habilitado', false);
 
-    // Publicar endpoint HTTP com acesso a dados é decisão de deploy, não de
-    // formulário web. A tela desabilita e explica o que falta.
-    Livewire::test(Configuracoes::class)
-        ->assertSee('disabled')
-        ->assertSee('a rota não está publicada neste ambiente');
+    $componente = Livewire::test(Configuracoes::class);
+
+    expect($componente->instance()->tokenEmUso()['origem'])->toBe('ausente');
+
+    $componente->call('gerarToken');
+
+    $gerado = $componente->get('tokenGerado');
+
+    // Mostrado inteiro nesta resposta: quem opera precisa copiar para o gateway.
+    expect($gerado)->toStartWith('clau_')
+        ->and(mb_strlen($gerado))->toBe(53)
+        ->and(Configuracao::valor('api_token'))->toBe($gerado);
+
+    $componente->assertSee($gerado)->assertSee('não será mostrado de novo');
+
+    // E some na interação seguinte, sobrando só a máscara.
+    $componente->call('salvar');
+
+    expect($componente->get('tokenGerado'))->toBe('');
+
+    $recarregado = Livewire::test(Configuracoes::class);
+
+    expect($recarregado->instance()->tokenEmUso()['origem'])->toBe('tela')
+        ->and($recarregado->get('tokenGerado'))->toBe('');
+
+    $recarregado->assertDontSee($gerado);
+});
+
+it('guarda o token criptografado, não em texto puro', function () {
+    comoAdmin();
+
+    Livewire::test(Configuracoes::class)->call('gerarToken');
+
+    $bruto = (string) DB::table('claudinho_configuracoes')->where('chave', 'api_token')->value('valor');
+
+    expect($bruto)->not->toContain('clau_')
+        ->and(Configuracao::valor('api_token'))->toStartWith('clau_');
+});
+
+it('troca e revoga o token', function () {
+    comoAdmin();
+
+    $componente = Livewire::test(Configuracoes::class);
+
+    $componente->call('gerarToken');
+    $primeiro = $componente->get('tokenGerado');
+
+    $componente->call('gerarToken');
+
+    // Gerar de novo invalida o anterior na hora: é rotação, não acúmulo.
+    expect($componente->get('tokenGerado'))->not->toBe($primeiro)
+        ->and(Configuracao::valor('api_token'))->not->toBe($primeiro);
+
+    $componente->call('revogarToken');
+
+    expect(Configuracao::valor('api_token'))->toBeNull()
+        ->and($componente->instance()->tokenEmUso()['origem'])->toBe('ausente');
+});
+
+it('exige a permissão para mexer no token', function () {
+    comoAdmin();
+    $componente = Livewire::test(Configuracoes::class);
+
+    Gate::define('claudinho_admin', fn (): bool => false);
+
+    $componente->call('gerarToken')->assertForbidden();
+
+    expect(Configuracao::valor('api_token'))->toBeNull();
 });

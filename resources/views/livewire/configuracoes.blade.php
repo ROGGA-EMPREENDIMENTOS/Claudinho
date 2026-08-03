@@ -100,24 +100,86 @@
                         </span>
                     </label>
 
-                    <label class="flex items-start gap-2.5 {{ $api['publicada'] ? 'cursor-pointer' : 'cursor-not-allowed opacity-60' }}">
-                        <input wire:model="api" type="checkbox" @disabled(! $api['publicada'])
-                            class="mt-0.5 rounded border-gray-300 text-sky-600 shrink-0 focus:ring-sky-500 disabled:opacity-50 dark:bg-gray-800 dark:border-gray-700">
+                    <label class="flex items-start gap-2.5 cursor-pointer">
+                        <input wire:model="api" type="checkbox"
+                            class="mt-0.5 rounded border-gray-300 text-sky-600 shrink-0 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700">
 
                         <span class="flex flex-col gap-0.5">
                             <span class="text-sm text-gray-700 dark:text-gray-300">
                                 Atendimento pela API (WhatsApp e outros canais)
                             </span>
                             <span class="text-xs text-gray-500 dark:text-gray-400">
-                                @if ($api['publicada'])
-                                    Desligado, o endpoint responde 503 e nenhuma conversa externa é atendida.
-                                @else
-                                    Indisponível: a rota não está publicada neste ambiente. Publicar um endpoint HTTP
-                                    é decisão de deploy, não de tela — veja abaixo o que falta.
-                                @endif
+                                Desligado, o endpoint responde 503 e nenhuma conversa externa é atendida.
+                                Precisa de token — e de um resolvedor de usuário, que é código.
                             </span>
                         </span>
                     </label>
+                </section>
+
+                <section class="flex flex-col gap-1.5">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Token do chamador</span>
+
+                    <span class="text-xs text-gray-500 dark:text-gray-400">
+                        Autentica o gateway que fala com o endpoint — não é a chave do Claude nem a senha de
+                        ninguém. É por ele que passa o <span class="font-mono">Authorization: Bearer</span>.
+                    </span>
+
+                    @if (filled($tokenGerado))
+                        {{-- Aparece uma vez só. Ao contrário da chave do Claude, este segredo
+                             precisa ser lido: quem opera tem de copiá-lo para o gateway. --}}
+                        <div
+                            class="flex flex-col gap-1.5 p-2.5 border rounded-md border-amber-300 bg-amber-50 dark:border-amber-700/60 dark:bg-amber-950/40">
+                            <span class="text-xs font-medium text-amber-800 dark:text-amber-200">
+                                Copie agora — este token não será mostrado de novo.
+                            </span>
+
+                            <code x-data="{ copiado: false }"
+                                x-on:click="navigator.clipboard?.writeText($refs.token.textContent.trim());
+                                            copiado = true; setTimeout(() => copiado = false, 2000)"
+                                class="flex items-center justify-between gap-2 px-2 py-1.5 font-mono text-xs break-all bg-white border rounded cursor-pointer border-amber-200 text-amber-900 dark:bg-gray-900 dark:border-amber-800 dark:text-amber-100">
+                                <span x-ref="token">{{ $tokenGerado }}</span>
+
+                                <span x-text="copiado ? 'copiado' : 'copiar'"
+                                    class="shrink-0 text-[10px] uppercase tracking-wide opacity-60"></span>
+                            </code>
+                        </div>
+                    @endif
+
+                    @php($token = $this->tokenEmUso())
+
+                    <span class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                        @if ($token['origem'] === 'tela')
+                            <span>Em uso, gerado aqui: <span class="font-mono">{{ $token['dica'] }}</span></span>
+
+                            <button type="button" wire:click="gerarToken"
+                                wire:confirm="Gerar um token novo? O atual para de funcionar na hora, e o gateway precisa ser atualizado."
+                                class="font-medium underline text-sky-700 underline-offset-2 hover:text-sky-900 dark:text-sky-400 dark:hover:text-sky-300">
+                                Gerar outro
+                            </button>
+
+                            <button type="button" wire:click="revogarToken"
+                                wire:confirm="Revogar o token? O endpoint para de atender até haver outro."
+                                class="font-medium underline text-sky-700 underline-offset-2 hover:text-sky-900 dark:text-sky-400 dark:hover:text-sky-300">
+                                Revogar
+                            </button>
+                        @elseif ($token['origem'] === 'env')
+                            <span>Em uso, vindo do <span class="font-mono">.env</span>:
+                                <span class="font-mono">{{ $token['dica'] }}</span>.</span>
+
+                            <button type="button" wire:click="gerarToken"
+                                wire:confirm="Gerar um token aqui? Ele passa a valer no lugar do que está no .env."
+                                class="font-medium underline text-sky-700 underline-offset-2 hover:text-sky-900 dark:text-sky-400 dark:hover:text-sky-300">
+                                Gerar um aqui
+                            </button>
+                        @else
+                            <span class="text-amber-700 dark:text-amber-500">Nenhum token — o endpoint responde 503.</span>
+
+                            <button type="button" wire:click="gerarToken"
+                                class="font-medium underline text-sky-700 underline-offset-2 hover:text-sky-900 dark:text-sky-400 dark:hover:text-sky-300">
+                                Gerar token
+                            </button>
+                        @endif
+                    </span>
                 </section>
 
                 {{-- Documentação embutida em vez de link: mostra a URL real deste ambiente e
@@ -147,15 +209,13 @@
                             @endforeach
                         </ul>
 
-                        @if ($api['url'])
-                            <div class="flex flex-col gap-1">
+                        <div class="flex flex-col gap-1">
                                 <span class="font-medium text-gray-700 dark:text-gray-300">Enviar uma mensagem</span>
                                 <pre class="p-2 overflow-x-auto font-mono text-gray-700 rounded bg-gray-50 dark:bg-gray-800 dark:text-gray-300">curl -X POST {{ $api['url'] }} \
   -H "Authorization: Bearer SEU_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"canal":"whatsapp","identificador":"5547999998888","mensagem":"quantas obras ativas?"}'</pre>
                             </div>
-                        @endif
 
                         <div class="flex flex-col gap-1">
                             <span class="font-medium text-gray-700 dark:text-gray-300">A resposta</span>
