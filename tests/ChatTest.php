@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 use Rogga\Claudinho\Livewire\Chat;
 
@@ -152,6 +153,132 @@ it('esconde o seletor de tema quando a aplicação tem o próprio', function () 
         // O x-effect continua: quem já escolheu antes não perde a escolha.
         ->assertSee("classList.toggle('dark', escuro)", false);
 });
+
+it('não monta botão nem painel flutuante por padrão', function () {
+    $html = Livewire::test(Chat::class)->html();
+
+    expect($html)
+        ->not->toContain('role="dialog"')
+        ->not->toContain('Abrir o assistente')
+        // Sem o painel não existe fechar() no escopo: chamada órfã quebraria o Alpine.
+        ->not->toContain('fechar()');
+});
+
+it('monta o botão e o painel quando flutuante', function () {
+    $componente = Livewire::test(Chat::class, ['flutuante' => true]);
+
+    $componente
+        ->assertSee('Abrir o assistente')
+        ->assertSee('role="dialog"', false)
+        ->assertSee('x-on:click="abrir()"', false)
+        ->assertSee('x-on:click="fechar()"', false)
+        ->assertSee('aria-label="Fechar o assistente"', false)
+        // Tela inteira no mobile, ancorado do sm: para cima.
+        ->assertSee('inset-0 sm:inset-auto', false)
+        ->assertSee('sm:right-6', false);
+});
+
+it('deixa o painel abaixo do modal de configurações', function () {
+    config()->set('claudinho.permissao_admin', null);
+
+    $html = Livewire::test(Chat::class, ['flutuante' => true])->html();
+
+    // O modal de configurações é z-50; painel e botão acima disso esconderiam a
+    // engrenagem por trás do próprio chat.
+    expect($html)->toContain('fixed z-40')
+        ->and($html)->toContain('z-50');
+});
+
+it('não aninha o modal de configurações dentro do painel flutuante', function () {
+    config()->set('claudinho.permissao_admin', null);
+
+    $documento = new DOMDocument;
+    // O HTML do Livewire tem atributos que o parser reclama; o que importa é a árvore.
+    @$documento->loadHTML(Livewire::test(Chat::class, ['flutuante' => true])->html());
+
+    $modal = (new DOMXPath($documento))->query('//*[@aria-modal="true"]')->item(0);
+
+    expect($modal)->not->toBeNull();
+
+    $ancestrais = [];
+
+    for ($no = $modal->parentNode; $no instanceof DOMElement; $no = $no->parentNode) {
+        $ancestrais[] = $no->getAttribute('x-ref');
+    }
+
+    // O modal é fixed, e ancestral com transform vira o bloco contêiner de
+    // descendentes fixed — o painel tem transform durante a transição de abertura.
+    // Aninhado ali, o modal apareceria deslocado, ancorado no painel.
+    expect($ancestrais)->not->toContain('painel');
+});
+
+it('troca o canto do flutuante pela config', function () {
+    config()->set('claudinho.flutuante.posicao', 'esquerda');
+
+    Livewire::test(Chat::class, ['flutuante' => true])
+        ->assertSee('sm:left-6', false)
+        ->assertSee('left-6', false)
+        ->assertDontSee('sm:right-6', false);
+});
+
+it('usa o rótulo configurado no botão flutuante', function () {
+    config()->set('claudinho.flutuante.rotulo', 'Falar com o assistente');
+
+    Livewire::test(Chat::class, ['flutuante' => true])
+        ->assertSee('aria-label="Falar com o assistente"', false)
+        ->assertDontSee('Abrir o assistente');
+});
+
+it('abre já aberto quando a config pede', function () {
+    config()->set('claudinho.flutuante.aberto', true);
+
+    Livewire::test(Chat::class, ['flutuante' => true])->assertSee('aberto: true', false);
+
+    config()->set('claudinho.flutuante.aberto', false);
+
+    Livewire::test(Chat::class, ['flutuante' => true])->assertSee('aberto: false', false);
+});
+
+it('serve a mesma conversa nos dois modos', function () {
+    foreach ([false, true] as $flutuante) {
+        $componente = Livewire::test(Chat::class, ['flutuante' => $flutuante])
+            ->set('pergunta', 'quantas obras ativas?')
+            ->call('enviar');
+
+        // O card é o mesmo partial: bolha, textarea e streaming não podem depender do modo.
+        $componente
+            ->assertSee('quantas obras ativas?')
+            ->assertSee('wire:stream="resposta"', false)
+            ->assertSee('Claudinho está respondendo');
+    }
+});
+
+it('avisa que a resposta ficou pronta, para o painel fechado acender o ponto', function () {
+    fakeStreams(rodadaTexto('São 12 obras ativas.'));
+
+    Livewire::test(Chat::class, ['flutuante' => true])
+        ->set('pergunta', 'quantas obras ativas?')
+        ->call('enviar')
+        ->call('responder')
+        ->assertDispatched('claudinho-resposta-pronta');
+});
+
+it('mantém o 403 do gate no modo flutuante', function () {
+    config()->set('claudinho.permissao', 'use_assistente');
+
+    // Não relaxar o gate no flutuante é decisão: renderizar nada em silêncio
+    // esconderia o assistente de todo mundo se o nome da permissão estiver errado.
+    // O preço é que, num layout global, o include precisa vir dentro de @can — está
+    // documentado no README, e é este teste que prende a documentação ao código.
+    Livewire::test(Chat::class, ['flutuante' => true])->assertForbidden();
+    Livewire::test(Chat::class)->assertForbidden();
+});
+
+it('não deixa o cliente ligar o modo flutuante por conta própria', function () {
+    // Locked: onde o componente foi colocado é decisão do servidor. O checksum do
+    // snapshot já barra adulteração do payload, mas não um $wire.set() legítimo.
+    Livewire::test(Chat::class)->set('flutuante', true);
+})->throws(CannotUpdateLockedPropertyException::class);
 
 it('renderiza as variantes dark do container e das bolhas', function () {
     $componente = Livewire::test(Chat::class);

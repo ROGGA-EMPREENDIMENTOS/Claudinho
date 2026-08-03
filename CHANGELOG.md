@@ -1,5 +1,36 @@
 # Changelog
 
+## v1.2.0
+
+### Adicionado
+
+- **Chat flutuante.** O mesmo componente, com `['flutuante' => true]`, vira um botão fixo num
+  canto que abre o chat em painel — para pôr uma vez no layout global em vez de ocupar uma
+  tela. Parâmetro e não config porque é decisão de *onde* o componente foi colocado: a mesma
+  aplicação pode ter a tela dedicada e o botão no layout.
+  - **Fechar não descarta a conversa**: o componente segue montado e o painel só é escondido.
+    Reabrir devolve tudo onde estava, inclusive ação esperando confirmação.
+  - **Responde com o painel fechado.** Resposta pronta, loop parado pedindo confirmação ou
+    erro acendem um ponto no botão (evento `claudinho-resposta-pronta`, novo). Sem isso a
+    pergunta ficaria sem retorno visível para quem fecha e continua trabalhando.
+  - Tela inteira no mobile, ancorado no canto do `sm:` para cima; `Esc` fecha; o foco vai
+    para o campo ao abrir. Não fecha ao clicar fora, de propósito — num chat, clicar na
+    página para reler algo não é intenção de sair.
+  - `flutuante.posicao`, `flutuante.rotulo` e `flutuante.aberto` no config, só aparência.
+  - A aplicação abre o chat de onde quiser com `$dispatch('claudinho-abrir')`.
+  - O gate `claudinho.permissao` **não** foi relaxado: num layout global o include precisa
+    vir dentro de `@can`, senão quem não tem a permissão toma 403 em toda página. Renderizar
+    nada em silêncio esconderia o assistente de todos ao menor erro no nome da permissão.
+- O card virou o partial `livewire/partials/card.blade.php`, compartilhado pelos dois modos.
+  Quem publicou as views com `vendor:publish --tag=claudinho-views` precisa republicar.
+
+### Corrigido
+
+- O modal de configurações saiu de dentro do card e passou a ficar na raiz do componente. Ele
+  é `fixed`, e ancestral com `transform` vira o bloco contêiner de descendentes `fixed` — o
+  painel flutuante tem `transform` durante a transição de abertura, o que deslocaria o modal.
+  No modo inline nada muda de aparência.
+
 ## v1.1.1
 
 ### Corrigido

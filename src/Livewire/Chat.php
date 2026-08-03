@@ -57,6 +57,15 @@ class Chat extends Component
 
     public bool $respondendo = false;
 
+    /**
+     * Modo flutuante: em vez do card na largura da página, um botão fixo num canto
+     * que abre o painel. Vem por parâmetro e não por config porque é decisão de
+     * onde o componente foi colocado — a mesma aplicação pode ter a tela dedicada
+     * e o botão no layout global.
+     */
+    #[Locked]
+    public bool $flutuante = false;
+
     public function mount(): void
     {
         $permissao = config('claudinho.permissao');
@@ -180,6 +189,7 @@ class Chat extends Component
                 if ($this->pendentes !== []) {
                     $this->iteracao++;
                     $this->respondendo = false;
+                    $this->avisarQueRespondeu();
 
                     return;
                 }
@@ -198,6 +208,17 @@ class Chat extends Component
         }
 
         $this->respondendo = false;
+        $this->avisarQueRespondeu();
+    }
+
+    /**
+     * O painel flutuante fechado precisa marcar que chegou resposta — inclusive
+     * quando o loop parou pedindo confirmação, que é o caso mais urgente. No modo
+     * inline ninguém escuta, e o evento não custa nada.
+     */
+    private function avisarQueRespondeu(): void
+    {
+        $this->dispatch('claudinho-resposta-pronta');
     }
 
     /**

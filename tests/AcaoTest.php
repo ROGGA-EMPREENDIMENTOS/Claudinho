@@ -201,7 +201,10 @@ it('pausa o loop na ação, sem executar nada, e mostra a confirmação', functi
         ->assertSee('Cancelar o pedido 4821?')
         ->assertSee('Confirmar e executar')
         ->assertSee('Nada foi alterado ainda')
-        ->assertSee('Aguardando confirmação: cancelar_pedido (pedido: 4821)');
+        ->assertSee('Aguardando confirmação: cancelar_pedido (pedido: 4821)')
+        // Painel flutuante fechado tem que acender o ponto: ação esperando
+        // confirmação é o caso mais urgente de todos.
+        ->assertDispatched('claudinho-resposta-pronta');
 });
 
 it('executa e retoma o loop quando o usuário confirma', function () {

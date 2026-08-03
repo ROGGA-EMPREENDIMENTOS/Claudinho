@@ -91,6 +91,38 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Chat flutuante
+    |--------------------------------------------------------------------------
+    |
+    | Só aparência. Ligar o modo flutuante é decisão de onde o componente foi
+    | colocado, não de config — a mesma aplicação pode ter a tela dedicada e o
+    | botão no layout global:
+    |
+    |   @livewire('claudinho.chat')                        card na página
+    |   @livewire('claudinho.chat', ['flutuante' => true]) botão fixo num canto
+    |
+    | No layout global, ponha uma vez antes do </body>. Fechar não descarta a
+    | conversa: o componente segue montado e o painel só fica escondido.
+    |
+    */
+
+    'flutuante' => [
+
+        // Canto do botão e do painel: 'direita' ou 'esquerda'. Escolha o lado
+        // livre — do outro costumam ficar os toasts de notificação.
+        'posicao' => 'direita',
+
+        // Nome acessível e tooltip do botão.
+        'rotulo' => 'Abrir o assistente',
+
+        // Já nasce aberto. Deixe false no layout global, senão o painel cobre a
+        // tela em toda navegação. Serve para página dedicada ao assistente.
+        'aberto' => false,
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Conversa
     |--------------------------------------------------------------------------
     */

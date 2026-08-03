@@ -22,6 +22,8 @@ consultas do seu sistema — e o pacote garante que o modelo só veja o que o us
   próprio. A chave vai criptografada no banco e nunca volta para o navegador.
 - **Tema claro e escuro** — acompanha o da aplicação pelas variantes `dark:`, sem
   configuração extra no pacote.
+- **Card na página ou chat flutuante** — o mesmo componente serve de tela dedicada ou de
+  botão fixo num canto do layout, aberto em painel. Ver [Chat flutuante](#chat-flutuante).
 
 ## Instalação
 
@@ -148,6 +150,59 @@ Route::get('/assistente', fn () => view('assistente'))
 @section('content')
     @livewire('claudinho.chat')
 @endsection
+```
+
+## Chat flutuante
+
+O mesmo componente, com um parâmetro, vira um botão fixo num canto que abre o chat em
+painel. Ponha uma vez no layout global, antes do `</body>`:
+
+```blade
+{{-- resources/views/layouts/app.blade.php --}}
+@livewire('claudinho.chat', ['flutuante' => true])
+```
+
+Ligar o modo é parâmetro e não config porque é decisão de **onde** o componente foi
+colocado: a mesma aplicação pode ter a tela dedicada (card na página) e o botão no layout.
+Se você puser os dois na mesma página, serão duas conversas independentes — é o esperado,
+mas provavelmente não é o que você quer.
+
+O gate `claudinho.permissao` continua valendo. Num layout global, quem não tem a permissão
+tomaria 403 em **toda** página, então proteja o include:
+
+```blade
+@can('use_assistente')
+    @livewire('claudinho.chat', ['flutuante' => true])
+@endcan
+```
+
+A aparência sai do config:
+
+```php
+'flutuante' => [
+    'posicao' => 'direita',            // ou 'esquerda' — escolha o lado livre dos toasts
+    'rotulo' => 'Abrir o assistente',  // nome acessível e tooltip do botão
+    'aberto' => false,                 // já nascer aberto; deixe false no layout global
+],
+```
+
+O que o modo flutuante faz por conta própria:
+
+- **Fechar não descarta a conversa.** O componente segue montado e o painel só é escondido;
+  reabrir devolve tudo onde estava, inclusive uma ação esperando confirmação.
+- **Responde com o painel fechado.** Você pergunta, fecha, continua trabalhando — quando a
+  resposta chega (ou o loop para pedindo confirmação, ou dá erro), um ponto vermelho acende
+  no botão. Abrir apaga o ponto.
+- **Tela inteira no mobile.** Um painel de 26rem em 360px de largura não serve para
+  conversar; do breakpoint `sm:` para cima ele fica ancorado no canto.
+- **Fecha com `Esc`**, e o foco vai para o campo de pergunta ao abrir. Não fecha ao clicar
+  fora, de propósito: num chat, clicar na página para reler algo não é intenção de sair.
+
+A aplicação pode abrir o chat de qualquer lugar — um item de menu, um botão de "precisa de
+ajuda?" — despachando um evento na window:
+
+```blade
+<button x-on:click="$dispatch('claudinho-abrir')">Falar com o assistente</button>
 ```
 
 ## Escrevendo uma ferramenta
