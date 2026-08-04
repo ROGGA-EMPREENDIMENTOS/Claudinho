@@ -3,6 +3,12 @@
     "description": "Assistente de chat em linguagem natural sobre os dados da própria aplicação Laravel, integrado à API do Claude via tool use.",
     "type": "library",
     "license": "MIT",
+    "authors": [
+        {
+            "name": "Mikael Silva",
+            "email": "mikael.silva@rogga.com.br"
+        }
+    ],
     "require": {
         "php": "^8.2",
         "laravel/framework": "^11.0|^12.0",

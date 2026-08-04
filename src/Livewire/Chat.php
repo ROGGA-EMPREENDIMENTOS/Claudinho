@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Rogga\Claudinho\Claudinho;
 use Rogga\Claudinho\Conversa;
 use Rogga\Claudinho\FerramentaRegistry;
 use Rogga\Claudinho\Grafico\Especificacao;
@@ -304,6 +305,31 @@ class Chat extends Component
     public function temConversa(): bool
     {
         return $this->conversa !== [];
+    }
+
+    /**
+     * O que a janela "Sobre" mostra.
+     *
+     * O modelo entra na lista de versões e não numa seção própria porque é a mesma
+     * pergunta que as outras linhas respondem: com o que este chat está funcionando.
+     * Vem do mesmo lugar que o Claude lê — o gravado em tela, com o config como
+     * padrão — senão a janela mostraria o do .env enquanto as respostas vêm de outro.
+     *
+     * Aparece para qualquer usuário, e não só para quem administra: qual modelo
+     * responde é transparência sobre a resposta, não configuração do sistema. O que
+     * é segredo (chave e token) não passa por aqui.
+     *
+     * @return array{modelo: string, ambiente: array<string, string>, pacote: string, licenca: string, desenvolvedor: string}
+     */
+    public function sobre(): array
+    {
+        return [
+            'modelo' => (string) Configuracao::valor('model', config('claudinho.model')),
+            'ambiente' => Claudinho::ambiente(),
+            'pacote' => Claudinho::PACOTE,
+            'licenca' => Claudinho::LICENCA,
+            'desenvolvedor' => Claudinho::DESENVOLVEDOR,
+        ];
     }
 
     /**

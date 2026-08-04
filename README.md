@@ -23,6 +23,9 @@ consultas do seu sistema — e o pacote garante que o modelo só veja o que o us
   vai criptografada no banco e nunca volta para o navegador.
 - **Tema claro e escuro** — acompanha o da aplicação pelas variantes `dark:`, sem
   configuração extra no pacote.
+- **Janela "Sobre"** — versão instalada, versões do ambiente e modelo em uso, além de como o
+  assistente trabalha, pelo ⓘ do header. Sem gate: é informação de quem usa o chat.
+  Ver [Janela "Sobre"](#janela-sobre).
 - **Card na página ou chat flutuante** — o mesmo componente serve de tela dedicada ou de
   botão fixo num canto do layout, aberto em painel. Ver [Chat flutuante](#chat-flutuante).
 - **Endpoint HTTP** — o mesmo assistente por API, para WhatsApp e outros canais externos,
@@ -170,6 +173,32 @@ a assinatura completa de `sm` para cima contra a marca sozinha em telas estreita
 Para trocar a arte, sobrescreva esses quatro nomes em `resources/images/` do pacote (ou
 publique as views com `--tag=claudinho-views` e edite `components/logo.blade.php`). Os
 originais em alta ficam em `art/`.
+
+## Janela "Sobre"
+
+O ⓘ no header abre uma janela que serve a dois leitores ao mesmo tempo:
+
+- **Como o assistente trabalha**, em quatro linhas escritas para quem usa o chat: que ele
+  consulta pelas ferramentas que a aplicação registrou, que só vê o que aquele usuário vê,
+  que alteração de dados espera confirmação — e que **pode errar, inclusive ao somar**. O
+  último item é o único que muda o que a pessoa faz com um número que veio dali, então está
+  lá com destaque em vez de nota de pé.
+- **As versões** de Claudinho, Laravel, Livewire e PHP, mais o modelo em uso. É o que se pede
+  a quem abre um chamado; sem isso a primeira resposta do suporte é sempre *"está
+  atualizado?"*. Versão que o Composer não sabe informar (repositório clonado direto) sai da
+  lista, em vez de aparecer como *desconhecida*.
+
+O modelo vem do mesmo lugar que o `Claude` lê — o gravado em tela, com o config como padrão.
+Ler do config direto faria a janela mostrar o do `.env` enquanto as respostas vêm de outro.
+
+No rodapé fica a marca da **Rôgga Empreendimentos**, embutida em `data:` URI (~4 KB no HTML).
+Não é arquivo em `public/vendor/claudinho` como o logo do header de propósito: esta janela é a
+que não pode depender de `vendor:publish`, e quem usa `'logo' => false` nunca publicou asset
+nenhum. Mesma decisão do Claudinho animado, que é SVG inline pelo mesmo motivo.
+
+**Sem gate, de propósito.** Nenhum segredo passa por ali (chave e token ficam na engrenagem,
+que tem gate próprio), e a informação serve justamente a quem **não** administra o pacote.
+Para um header mais enxuto, `'sobre' => false` no config tira o botão — e a janela junto.
 
 ## Colocando na tela
 

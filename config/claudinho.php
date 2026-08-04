@@ -71,6 +71,12 @@ return [
     // ficar só com o título, sem depender dos PNGs publicados.
     'logo' => true,
 
+    // Botão no header que abre a janela "Sobre": versão instalada, versões de
+    // Laravel/Livewire/PHP, modelo em uso e como o assistente trabalha. Não tem gate,
+    // porque é o usuário do chat quem precisa dessa informação — e nenhum segredo
+    // aparece lá. Deixe false para um header mais enxuto.
+    'sobre' => true,
+
     'tema' => [
 
         // Botão no header que alterna sistema → claro → escuro. Deixe false se a

@@ -95,6 +95,46 @@ it('esconde a engrenagem quando permissao_admin exige gate e ninguém está loga
         ->assertDontSee('Configurações do Claudinho');
 });
 
+it('monta o botão e a janela do sobre para quem não administra', function () {
+    // Sem gate de propósito: a janela é para o usuário do chat. permissao_admin no
+    // padrão e ninguém logado é justamente quem NÃO passa pela engrenagem.
+    config()->set('claudinho.permissao_admin', 'claudinho_admin');
+
+    Livewire::test(Chat::class)
+        ->assertDontSee('claudinho-abrir-configuracoes', false)
+        ->assertSee('claudinho-abrir-sobre', false)
+        ->assertSee('aria-label="Sobre o Claudinho"', false)
+        ->assertSee('Sobre o Claudinho')
+        ->assertSee('Como ele trabalha')
+        // As versões são o motivo da janela existir: é o que se pede num chamado.
+        ->assertSee('Laravel')
+        ->assertSee('Livewire')
+        ->assertSee(PHP_VERSION)
+        // Modelo em uso: o TestCase fixa o opus, e é ele que responde.
+        ->assertSee('claude-opus-5')
+        ->assertSee('rogga/claudinho')
+        ->assertSee('Rôgga Empreendimentos')
+        // Nenhum segredo pode vazar por uma janela sem gate.
+        ->assertDontSee('fake-key');
+});
+
+it('embute a marca da Rôgga no rodapé, sem depender de asset publicado', function () {
+    Livewire::test(Chat::class)
+        ->assertSee('alt="Rôgga Empreendimentos"', false)
+        ->assertSee('src="data:image/png;base64,', false)
+        // Arquivo em public/ quebraria em quem não republicou os assets — e uma imagem
+        // quebrada no rodapé de uma janela "Sobre" desmente a janela.
+        ->assertDontSee('vendor/claudinho/rogga', false);
+});
+
+it('deixa a aplicação desligar o sobre', function () {
+    config()->set('claudinho.sobre', false);
+
+    Livewire::test(Chat::class)
+        ->assertDontSee('claudinho-abrir-sobre', false)
+        ->assertDontSee('Sobre o Claudinho');
+});
+
 it('monta o seletor de tema com os três estados', function () {
     $componente = Livewire::test(Chat::class);
 
@@ -158,7 +198,9 @@ it('não monta botão nem painel flutuante por padrão', function () {
     $html = Livewire::test(Chat::class)->html();
 
     expect($html)
-        ->not->toContain('role="dialog"')
+        // x-ref="painel" e não role="dialog": a janela do sobre também é um dialog, e
+        // ela existe nos dois modos. O painel é o que não pode estar aqui.
+        ->not->toContain('x-ref="painel"')
         ->not->toContain('Abrir o assistente')
         // Sem o painel não existe fechar() no escopo: chamada órfã quebraria o Alpine.
         ->not->toContain('fechar()');

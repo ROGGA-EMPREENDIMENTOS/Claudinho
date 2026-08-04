@@ -1,5 +1,32 @@
 # Changelog
 
+## v1.4.0
+
+### Adicionado
+
+- **Janela "Sobre"**, pelo ⓘ do header. Duas coisas que antes não tinham lugar na tela:
+  - **Como o assistente trabalha**, escrito para quem usa o chat e não para quem instala —
+    consulta pelas ferramentas registradas, só vê o que aquele usuário vê, alteração espera
+    confirmação, e **pode errar, inclusive ao somar**. O último item fica em destaque porque é
+    o único que muda o que a pessoa faz com o número que leu ali.
+  - **As versões** de Claudinho, Laravel, Livewire e PHP, mais o modelo em uso. É o que se
+    pede a quem abre um chamado, e o valor está na combinação, não em cada número solto.
+    Versão que o Composer não sabe informar sai da lista em vez de virar "desconhecida".
+  - **Sem gate**: nada ali é segredo — chave e token continuam atrás do `permissao_admin`, na
+    engrenagem — e a informação serve justamente a quem não administra o pacote. `'sobre' =>
+    false` no config tira o botão e a janela.
+  - No rodapé, a marca da **Rôgga Empreendimentos** em `data:` URI (~4 KB no HTML da página).
+    Arquivo em `public/vendor/claudinho` seria mais leve, mas quebraria em quem não republicou
+    os assets — e imagem quebrada no rodapé de uma janela "Sobre" desmente a janela. O PNG de
+    origem (fundo branco) virou transparente com a tinta intocada; fica em `art/rogga.png`.
+  - O modelo é lido de onde o `Claude` lê (gravado em tela, config como padrão). Ler do config
+    direto mostraria o do `.env` enquanto as respostas vêm de outro.
+  - Blade puro com Alpine, sem componente Livewire: o conteúdo não muda até a página recarregar,
+    então abrir não tem por que ir ao servidor. O modal de configurações é Livewire porque lá
+    há formulário e segredo em banco.
+- `Claudinho::versaoDe()` e `Claudinho::ambiente()` — a versão de qualquer pacote instalado e o
+  conjunto que a janela mostra. `Claudinho::versao()` passou a ser o caso particular do primeiro.
+
 ## v1.3.1
 
 ### Adicionado

@@ -57,6 +57,21 @@
                     </button>
                 @endif
 
+                @if (config('claudinho.sobre', true))
+                    {{-- Sem gate: o que a janela mostra é versão, licença e como o assistente
+                         trabalha — informação que serve justamente a quem NÃO administra.
+                         Segredo não passa por lá. --}}
+                    <button type="button" x-on:click="$dispatch('claudinho-abrir-sobre', { dono: @js($this->getId()) })"
+                        title="Sobre o Claudinho" aria-label="Sobre o Claudinho"
+                        class="inline-flex items-center justify-center w-8 h-8 text-gray-500 transition bg-white border border-gray-300 rounded-md shrink-0 hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1 dark:text-gray-400 dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-white dark:focus:ring-offset-gray-900">
+                        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                            stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                        </svg>
+                    </button>
+                @endif
+
                 @if ($this->temConversa())
                     <button type="button" wire:click="limpar" wire:confirm="Limpar toda a conversa?"
                         title="Apaga o histórico desta conversa"

@@ -184,6 +184,13 @@
         @include('claudinho::livewire.partials.card', ['flutuante' => false])
     @endif
 
+    {{-- Também fora do painel, e pelo mesmo motivo do modal de configurações: fixed
+         dentro de ancestral com transform sai do lugar. Só renderiza onde existe o
+         botão que a abre — no flutuante desligado não há header nenhum na tela. --}}
+    @if (config('claudinho.sobre', true) && (! $flutuante || $this->flutuanteVisivel()))
+        @include('claudinho::livewire.partials.sobre')
+    @endif
+
     {{-- Fora do painel de propósito (ver o comentário no card): o modal é fixed e não
          pode ter ancestral com transform. Nem renderiza para quem não tem a permissão —
          o componente ainda revalida o gate em cada ação, já que HTML ausente não é
