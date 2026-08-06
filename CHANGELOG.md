@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.4.2
+
+### Alterado
+
+- **A versão no "Sobre" perdeu o `v` da tag.** O Composer devolve o nome da tag como está, e a
+  maioria dos pacotes PHP marca `v1.4.1` — então a janela mostrava `Claudinho v1.4.1` ao lado de
+  `Laravel 11.x` e `PHP 8.3.x`, sem prefixo. Numa lista, o `v` solto lê como inconsistência e não
+  como informação. A normalização está no `versaoDe()`, ponto único por onde toda versão do
+  Composer passa, e é só do prefixo: `dev-main` de quem exige o pacote por branch continua
+  aparecendo inteiro, porque é justamente essa informação que explica por que não há número ali.
+
 ## v1.4.1
 
 ### Corrigido

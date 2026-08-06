@@ -28,6 +28,13 @@ class Claudinho
 
     /**
      * O mesmo para qualquer pacote instalado.
+     *
+     * O `v` da tag sai fora: o Composer devolve o nome da tag como está, e a maioria
+     * dos pacotes PHP marca `v1.4.1`. Numa lista ao lado de Laravel e PHP — que vêm
+     * sem prefixo — um `v` solto lê como inconsistência, não como informação. O ltrim
+     * é só do prefixo, então `dev-main` de quem exige o pacote por branch passa
+     * intacto: essa informação importa, e é justamente ela que diz por que não há
+     * número ali.
      */
     public static function versaoDe(string $pacote): ?string
     {
@@ -36,10 +43,14 @@ class Claudinho
         }
 
         try {
-            return InstalledVersions::getPrettyVersion($pacote);
+            $versao = InstalledVersions::getPrettyVersion($pacote);
         } catch (OutOfBoundsException) {
             return null;
         }
+
+        // Null continua null, e não '': o contrato de ausência é o mesmo do pacote
+        // que não está instalado, e quem exibe já sabe tratá-lo.
+        return $versao === null ? null : ltrim($versao, 'v');
     }
 
     /**

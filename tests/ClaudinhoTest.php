@@ -17,6 +17,14 @@ it('devolve null para pacote que não está instalado, em vez de estourar', func
     expect(Claudinho::versaoDe('rogga/pacote-que-nao-existe'))->toBeNull();
 });
 
+it('tira o v da tag para a versão ficar igual às outras da lista', function () {
+    // livewire/livewire marca com v (v3.6.4): é o caso real que o ltrim atende, e
+    // serve de sonda porque é dependência declarada, não pacote incidental do vendor.
+    expect(Claudinho::versaoDe('livewire/livewire'))
+        ->toBeString()
+        ->not->toStartWith('v');
+});
+
 it('junta as versões do ambiente que a janela sobre mostra', function () {
     $ambiente = Claudinho::ambiente();
 
