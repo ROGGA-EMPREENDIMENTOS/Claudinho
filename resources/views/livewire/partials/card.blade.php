@@ -261,10 +261,16 @@
         <form wire:submit="enviar" x-on:submit="$dispatch('claudinho-rolar')"
             class="flex items-center gap-2 p-4 border-t border-gray-100 dark:border-gray-800">
             <section class="grow">
+                {{-- text-base no mobile, e não text-sm em toda largura: o Safari do iOS dá
+                     zoom sozinho ao focar campo com fonte abaixo de 16px, e não desfaz o
+                     zoom ao sair — a página fica deslocada até o usuário pinçar de volta.
+                     Não há como consertar do lado do pacote pelo viewport, que é meta tag
+                     da aplicação; 16px é o que evita o gatilho. Do sm: para cima volta ao
+                     14px do resto do chat, onde o zoom nunca acontece. --}}
                 <textarea wire:model="pergunta" rows="2" @disabled($bloqueado)
                     placeholder="{{ $pendentes !== [] ? 'Confirme ou cancele a alteração acima para continuar...' : 'Digite sua pergunta...' }}"
                     x-on:keydown.enter="if (! $event.shiftKey) { $event.preventDefault(); $el.form.requestSubmit() }"
-                    class="w-full text-sm border-gray-300 rounded-md resize-none focus:border-sky-500 focus:ring-sky-500 disabled:bg-gray-50 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:placeholder-gray-500 dark:disabled:bg-gray-800/50"></textarea>
+                    class="w-full text-base border-gray-300 rounded-md resize-none sm:text-sm focus:border-sky-500 focus:ring-sky-500 disabled:bg-gray-50 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:placeholder-gray-500 dark:disabled:bg-gray-800/50"></textarea>
 
                 @error('pergunta')
                     <span class="text-xs text-red-600 dark:text-red-400">{{ $message }}</span>

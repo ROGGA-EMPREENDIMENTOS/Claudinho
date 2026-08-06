@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.4.1
+
+### Corrigido
+
+- **No mobile, focar o campo de pergunta dava zoom e a página não voltava.** É comportamento do
+  Safari do iOS: campo com fonte abaixo de 16px é tratado como ilegível e o navegador aproxima
+  sozinho ao receber o foco — mas não desfaz ao sair, então a tela fica deslocada até o usuário
+  pinçar de volta. Valia tanto no card em tela quanto no painel flutuante, e no flutuante era
+  pior: sendo `fixed`, ele se posiciona pelo viewport de layout e sai do lugar com o zoom. O
+  campo agora é 16px no mobile e volta aos 14px do resto do chat a partir do `sm:`. Não havia
+  como resolver pelo `viewport`, que é meta tag da aplicação — e travar `maximum-scale` seria
+  tirar o zoom de quem precisa dele para ler.
+- Mesmo ajuste no **modelo** e na **chave** do modal de configurações, pelo mesmo motivo: `select`
+  e `input` disparam o zoom igual ao `textarea`.
+
 ## v1.4.0
 
 ### Adicionado

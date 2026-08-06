@@ -42,8 +42,10 @@
                         Modelo
                     </label>
 
+                    {{-- text-base no mobile pelo mesmo motivo do campo de pergunta: abaixo
+                         de 16px o Safari do iOS dá zoom ao focar e não desfaz. --}}
                     <select wire:model="modelo" id="claudinho-modelo"
-                        class="w-full text-sm border-gray-300 rounded-md focus:border-sky-500 focus:ring-sky-500 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-700">
+                        class="w-full text-base border-gray-300 rounded-md sm:text-sm focus:border-sky-500 focus:ring-sky-500 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-700">
                         @foreach ($this->modelosDisponiveis() as $id => $descricao)
                             <option value="{{ $id }}">{{ $descricao }}</option>
                         @endforeach
@@ -61,7 +63,7 @@
 
                     <input wire:model="chaveNova" type="password" id="claudinho-chave" autocomplete="off"
                         placeholder="{{ $chave['origem'] === 'ausente' ? 'sk-ant-api03-...' : 'Deixe em branco para manter a atual' }}"
-                        class="w-full font-mono text-sm border-gray-300 rounded-md focus:border-sky-500 focus:ring-sky-500 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:placeholder-gray-500">
+                        class="w-full font-mono text-base border-gray-300 rounded-md sm:text-sm focus:border-sky-500 focus:ring-sky-500 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:placeholder-gray-500">
 
                     @error('chaveNova')
                         <span class="text-xs text-red-600 dark:text-red-400">{{ $message }}</span>
