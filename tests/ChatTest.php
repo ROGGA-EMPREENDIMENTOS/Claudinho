@@ -75,9 +75,10 @@ it('monta a engrenagem e o modal quando permissao_admin está liberado', functio
         ->assertSee('claudinho-abrir-configuracoes', false)
         ->assertSee('aria-label="Configurações"', false)
         ->assertSee('Configurações do Claudinho')
-        ->assertSee('claudinho-modelo', false)
-        // O TestCase define uma api_key de fixture, então a origem é o .env.
-        ->assertSee('vinda do');
+        // O modal abre na aba do assistente: contexto e glossário são o que se mexe
+        // toda semana, enquanto modelo e chave se define uma vez.
+        ->assertSee('Glossário de negócio')
+        ->assertSee('Modelo e chave');
 });
 
 it('avisa na tela de configurações quando não há chave em lugar nenhum', function () {

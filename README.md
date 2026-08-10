@@ -38,7 +38,7 @@ consultas do seu sistema — e o pacote garante que o modelo só veja o que o us
 composer require rogga/claudinho
 php artisan vendor:publish --tag=claudinho-config
 php artisan vendor:publish --tag=claudinho-assets   # logo do header
-php artisan migrate                                 # tabela de configurações
+php artisan migrate                                 # configurações e glossário
 ```
 
 O `claudinho-assets` copia os PNGs do logo para `public/vendor/claudinho`. Sem ele o header
@@ -74,9 +74,67 @@ content: [
 
 ## Configurações em tela
 
-A engrenagem no header abre um modal onde dá para trocar **modelo** e **chave da API**,
-ligar e desligar os **canais**, e consultar a **documentação da API**, tudo sem deploy.
-Aparece só para quem passa no gate `permissao_admin` (padrão `claudinho_admin`).
+A engrenagem no header abre um modal em três abas, tudo sem deploy. Aparece só para quem
+passa no gate `permissao_admin` (padrão `claudinho_admin`).
+
+| Aba | O que tem |
+|---|---|
+| **Assistente** | O **contexto** (quem é o assistente nesta aplicação) e o **glossário de negócio**, regra a regra. É o que se mexe toda semana, e por isso abre nela. |
+| **Modelo e chave** | O modelo em uso e a chave da API. Se define uma vez. |
+| **Canais** | Botão flutuante, atendimento pela API, token do chamador e a documentação do endpoint. |
+
+Um aviso fica **fora das abas**, no alto do modal: *nenhuma chave configurada*. É a única
+condição em que o chat está quebrado, e escondê-la atrás de uma aba seria deixar de avisar
+justamente quem ainda não configurou nada.
+
+### O glossário em tela
+
+Cada regra é uma linha de `claudinho_glossario`, com assunto, autoria e data.
+
+**A tela abre no índice de assuntos** — `OBRAS 3`, `DOCUMENTOS 12`, `PPC 10` — e as regras
+aparecem ao escolher um. É como a pergunta nasce ("mostre o glossário de PPC") e é o que
+mantém a tela usável depois da vigésima regra. Também é o que mantém o Livewire leve: com
+as 46 regras do SGT abertas de uma vez, cada ação no componente carregaria ~200 KB de HTML;
+pelo índice, são ~23 KB. A busca por texto atravessa todos os assuntos, para quem não sabe
+em qual deles está o que procura.
+
+O assunto é texto livre, com `datalist` das opções existentes e normalizado para maiúsculas
+— `Obras`, `obras ` e `OBRAS` são o mesmo assunto, senão viram três grupos na tela e três
+blocos no prompt, cada um com um terço do assunto. Regra sem assunto cai no grupo *Sem
+assunto*, que é a fila do que falta classificar. Cadastrar em lote é o caso comum, então o
+campo de assunto **não** é limpo entre uma regra e outra.
+
+Cada regra pode ser **editada** (inclusive reclassificada em outro assunto), **desativada**
+ou **removida**:
+
+- **Desativar** tira a regra do prompt na hora e mantém o texto legível. É o que se faz
+  quando uma regra piorou a resposta e ainda não se sabe qual é a redação certa — jogar
+  fora obrigaria a reescrever do zero.
+- **Remover** apaga mesmo. Sem histórico: quem precisa de rastro de alteração linha a
+  linha deve manter o glossário no config, versionado no git.
+
+Organizar o `config` em assuntos **antes** de importar poupa classificar dezenas de regras
+uma a uma depois: o botão *Importar* leva o assunto junto.
+
+**As regras salvam na hora**, sem passar pelo botão *Salvar* do rodapé — são registros,
+não campos de formulário. O contexto, esse sim, vale no *Salvar*. Por isso o botão que
+fecha o modal diz *Fechar* e não *Cancelar*: não há o que cancelar num glossário já
+gravado.
+
+A precedência com o config está descrita em [O glossário é o que faz a
+diferença](#o-glossário-é-o-que-faz-a-diferença) — resumo: **a partir da primeira regra
+cadastrada, o array do config para de valer inteiro.** A tela diz isso em voz alta,
+mostrando quantas regras do arquivo ainda não foram importadas.
+
+> Sem a migration da tabela `claudinho_glossario`, a aba mostra o que falta rodar e o chat
+> segue pelo config. Nenhum formulário aparece para engolir o que for escrito nele.
+
+Vale notar o que isso muda em custo: nada. O `systemPrompt()` é montado **uma vez por
+resposta**, não por render, e o glossário vem junto da mesma leitura de banco que já
+trazia modelo e chave. O que o glossário sempre custou são os **tokens** que ocupa no
+system prompt a cada pergunta — idêntico vindo de arquivo ou de tabela. A única diferença
+real é o cache de prompt da Anthropic: editar uma regra invalida o breakpoint, e a próxima
+conversa paga o system prompt cheio de novo.
 
 ### Interruptores de canal
 
@@ -122,9 +180,11 @@ a `APP_KEY` sem re-encriptar torna o valor gravado indecifrável, e o pacote tra
 chat com erro de criptografia. E backup de banco sem a `APP_KEY` não restaura a chave.
 
 O modelo em uso é lido do banco a cada resposta, sem cache: o valor decifrado da chave não
-deve ir para o cache store, que costuma ser menos protegido que o banco. São duas consultas
-leves por resposta — não por render de tela. Sem migration rodada, sem driver de banco ou
-sem conexão, tudo cai no `.env` em silêncio, e o chat continua funcionando.
+deve ir para o cache store, que costuma ser menos protegido que o banco. São consultas
+leves **por resposta** — não por render de tela: uma que traz de uma vez tudo o que está em
+`claudinho_configuracoes` (chave, modelo, contexto, interruptores) e outra do glossário.
+Sem migration rodada, sem driver de banco ou sem conexão, tudo cai no `config`/`.env` em
+silêncio, e o chat continua funcionando.
 
 O select de modelos vem de `config('claudinho.modelos')` — é só a lista da UI, edite à
 vontade. Um modelo gravado que saiu da lista continua selecionável, para o select não trocar
@@ -606,20 +666,42 @@ só o clique.
 
 ## O glossário é o que faz a diferença
 
-Schema o modelo descobre sozinho; **semântica não**. Coloque em `config/claudinho.php`
-as regras que não estão em lugar nenhum do código:
+Schema o modelo descobre sozinho; **semântica não**. O glossário são as regras que não
+estão em lugar nenhum do código, **agrupadas por assunto**:
 
 ```php
 'glossario' => [
-    'funcionarios.is_obra guarda o id da obra em que a pessoa está trabalhando naquele
-     momento; é foto do instante, não lotação do período.',
-    'users.obra_scoped vazio significa acesso a todas as obras.',
-    'A tabela funcionario_obras é pouco populada; não use como fonte de headcount.',
+    'OBRAS' => [
+        'EMPREENDIMENTO e OBRA são a mesma coisa.',
+        'obras.divisao é Prime ou Easy; obras.linha_negocio é a linha de negócio.',
+    ],
+    'FUNCIONÁRIOS' => [
+        'funcionarios.is_obra guarda o id da obra em que a pessoa está trabalhando
+         naquele momento; é foto do instante, não lotação do período.',
+        'A tabela funcionario_obras é pouco populada; não use como fonte de headcount.',
+    ],
 ],
 ```
 
-Esse arquivo crescer **é** o mecanismo de aprendizado do assistente. O modelo não aprende
-entre conversas — cada conversa começa do zero, com o que estiver aqui.
+A lista simples de antes dos assuntos continua valendo — as regras entram no bloco *sem
+assunto*, e nada quebra.
+
+O assunto **não é organização de tela**: ele vira o título do bloco no system prompt. Numa
+lista corrida de dezenas de itens, a regra de PPC e a de documentos chegam ao modelo com o
+mesmo peso e sem vizinhança, e ele perde a pista de que *status* quer dizer coisas
+diferentes em cada assunto. O título é o contexto que a regra sozinha não carrega.
+
+O glossário crescer **é** o mecanismo de aprendizado do assistente. O modelo não aprende
+entre conversas — cada conversa começa do zero, com o que estiver ali.
+
+E é por isso que o glossário **não mora só no config**: quem sabe a regra de negócio é
+quem opera o sistema, não quem faz deploy. A aba *Assistente* da engrenagem cadastra,
+edita, desativa e remove regra por regra, com autoria e data — ver
+[O glossário em tela](#o-glossário-em-tela).
+
+O array do config é o glossário de **partida**: vale enquanto não houver nenhuma regra
+cadastrada, e a tela tem um botão que importa tudo o que está nele. Quem prefere manter
+as regras no git simplesmente não cadastra nada em tela e continua como antes.
 
 ## Regras que o pacote impõe
 

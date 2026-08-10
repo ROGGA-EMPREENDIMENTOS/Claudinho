@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use Illuminate\Encryption\Encrypter;
-use Illuminate\Foundation\Auth\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
@@ -20,23 +19,6 @@ use Rogga\Claudinho\Models\Configuracao;
 beforeEach(function () {
     exigeBanco();
 });
-
-/**
- * Autentica um usuário e resolve o gate de administração como quiser.
- */
-function comoAdmin(bool $permitido = true): void
-{
-    Gate::define('claudinho_admin', fn ($usuario): bool => $permitido);
-
-    $usuario = new class extends User
-    {
-        protected $table = 'users';
-    };
-
-    $usuario->forceFill(['id' => 1, 'name' => 'Admin']);
-
-    test()->actingAs($usuario);
-}
 
 it('grava a chave da API criptografada, não em texto puro', function () {
     Configuracao::definir('api_key', 'sk-ant-api03-super-secreta');
@@ -128,15 +110,20 @@ it('mantém a chave atual quando o campo é enviado em branco', function () {
     expect(Configuracao::valor('api_key'))->toBe('sk-ant-api03-a-que-ja-existia');
 });
 
-it('nunca coloca a chave gravada no HTML da tela', function () {
+it('nunca coloca a chave gravada no HTML da tela, em aba nenhuma', function () {
     comoAdmin();
     Configuracao::definir('api_key', 'sk-ant-api03-nao-pode-aparecer');
 
-    $html = Livewire::test(Configuracoes::class)->html();
+    // Todas as abas, e não só a da chave: o segredo vaza pelo HTML inteiro, e uma aba
+    // nova amanhã não pode escapar deste teste por esquecimento.
+    foreach (['assistente', 'conexao', 'canais'] as $aba) {
+        $html = Livewire::test(Configuracoes::class)->set('aba', $aba)->html();
 
-    expect($html)
-        ->not->toContain('sk-ant-api03-nao-pode-aparecer')
-        // Mas a dica mascarada confirma qual chave está valendo.
+        expect($html)->not->toContain('sk-ant-api03-nao-pode-aparecer');
+    }
+
+    // Mas a dica mascarada confirma qual chave está valendo, na aba dela.
+    expect(Livewire::test(Configuracoes::class)->set('aba', 'conexao')->html())
         ->toContain('sk-ant-a');
 });
 
@@ -378,7 +365,7 @@ it('mostra a URL real do ambiente na documentação', function () {
     config()->set('claudinho.api.habilitado', true);
     config()->set('claudinho.api.prefixo', 'bot/v1');
 
-    $componente = Livewire::test(Configuracoes::class);
+    $componente = Livewire::test(Configuracoes::class)->set('aba', 'canais');
 
     expect($componente->instance()->situacaoApi()['url'])->toEndWith('/bot/v1/conversa');
 
@@ -389,7 +376,7 @@ it('mostra a URL real do ambiente na documentação', function () {
 it('gera o token, mostra uma vez e guarda mascarado', function () {
     comoAdmin();
 
-    $componente = Livewire::test(Configuracoes::class);
+    $componente = Livewire::test(Configuracoes::class)->set('aba', 'canais');
 
     expect($componente->instance()->tokenEmUso()['origem'])->toBe('ausente');
 
@@ -409,7 +396,7 @@ it('gera o token, mostra uma vez e guarda mascarado', function () {
 
     expect($componente->get('tokenGerado'))->toBe('');
 
-    $recarregado = Livewire::test(Configuracoes::class);
+    $recarregado = Livewire::test(Configuracoes::class)->set('aba', 'canais');
 
     expect($recarregado->instance()->tokenEmUso()['origem'])->toBe('tela')
         ->and($recarregado->get('tokenGerado'))->toBe('');

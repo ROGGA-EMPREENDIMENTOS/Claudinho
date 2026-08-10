@@ -1,5 +1,71 @@
 # Changelog
 
+## v1.5.0
+
+### Adicionado
+
+- **O glossário de negócio agora se cadastra em tela**, uma regra por linha, com assunto,
+  autoria e data. Era a última coisa importante do assistente que ainda exigia deploy — e a
+  pior de todas para exigir, porque quem sabe a regra de negócio é quem opera o sistema, não
+  quem faz o deploy. O glossário crescer é o mecanismo de aprendizado do Claudinho; enquanto
+  cada correção de frase custava um `git push`, ele crescia na velocidade das janelas de
+  release.
+  - **Cada regra tem um ASSUNTO, e a tela abre no índice deles** — `OBRAS 3`,
+    `DOCUMENTOS 12`, `PPC 10` —, com as regras aparecendo ao escolher um. Uma lista plana de
+    46 regras é um paredão: não se acha nada, não se compara nada, e cada ação do Livewire
+    carregaria ~200 KB de HTML (pelo índice são ~23 KB). A busca por texto atravessa os
+    assuntos, para quem não sabe em qual deles está o que procura.
+  - **O assunto vira o título do bloco no system prompt**, não só um agrupamento de tela.
+    Numa lista corrida, a regra de PPC e a de documentos chegam ao modelo com o mesmo peso e
+    sem vizinhança, e ele perde a pista de que "status" quer dizer coisas diferentes em cada
+    assunto. Sem nenhum assunto cadastrado, o texto sai exatamente como saía antes.
+  - O assunto é texto livre com `datalist` do que já existe, normalizado para maiúsculas:
+    `Obras`, `obras ` e `OBRAS` viram um assunto só. Sem isso seriam três grupos na tela e
+    três blocos no prompt, cada um com um terço do assunto.
+  - O `config` também aceita o formato por assunto (`'OBRAS' => [...]`), e a lista simples de
+    antes continua funcionando. Organizar o arquivo antes de importar poupa classificar
+    dezenas de regras uma a uma na tela: o botão *Importar* leva o assunto junto.
+  - **Editar, desativar e remover, regra a regra.** *Desativar* é o que faltava: tira a regra
+    do prompt na hora e mantém o texto legível, que é exatamente o que se quer quando uma
+    regra piorou a resposta e ainda não se sabe qual é a redação certa. Jogar fora obrigaria
+    a reescrever do zero para tentar de novo.
+  - **A precedência é a mesma do modelo e da chave**, com um detalhe deliberado: o critério é
+    a tabela ter ao menos UMA regra, não ter regras ativas. Somar config e tela mandaria duas
+    versões da mesma regra ao modelo assim que alguém corrigisse uma frase, e a velha
+    continuaria no prompt sem ninguém saber por quê. Cair no config quando todas estão
+    desativadas ressuscitaria justamente o glossário que a pessoa acabou de silenciar.
+  - **Botão que importa o glossário do config**, pulando o que já está cadastrado. Sem ele a
+    tela nasceria vazia para quem tem dezenas de regras no arquivo — ou seja, para quem mais
+    usa o glossário.
+  - **As regras salvam na hora**, sem passar pelo *Salvar* do rodapé: são registros, não
+    campos de formulário. Por isso o botão que fecha o modal passou a dizer *Fechar* — havia
+    um *Cancelar* que não cancelava mais nada do que estava na tela.
+  - Sem a migration, a aba diz o que falta rodar e o chat segue pelo config, em vez de
+    mostrar um formulário que engole o que for escrito nele.
+- **O contexto também se edita em tela**, com o config como padrão. Esvaziar o campo e salvar
+  devolve o texto do arquivo, e o campo volta preenchido com ele — afirmar contexto vazio
+  seria a tela mentir sobre o que o assistente está usando.
+- Migration `claudinho_glossario` e o model `Rogga\Claudinho\Models\Regra`. Sem criptografia,
+  ao contrário da `Configuracao`: glossário não é segredo, é documentação — e cifrar tiraria
+  a busca por texto. Autoria é o **nome** de quem escreveu, não id: o pacote não conhece o
+  model de usuário da aplicação e não vai criar chave estrangeira para uma tabela que pode
+  nem se chamar `users`.
+
+### Alterado
+
+- **O modal de configurações virou três abas** — *Assistente*, *Modelo e chave*, *Canais*.
+  Ele já estava alto demais antes do glossário; com ele, viraria rolagem sem fim. Abre na
+  *Assistente* porque contexto e glossário são o que se mexe toda semana, enquanto modelo e
+  chave se define uma vez. As abas são estado do servidor, e não do Alpine: toda ação do
+  glossário volta ao Livewire, e com a aba só no cliente cada regra salva devolveria o
+  usuário para a primeira.
+- O modal ficou mais largo (`max-w-2xl`): regra de glossário é texto corrido de várias
+  linhas, e numa coluna estreita cada uma vira um parágrafo alto demais para comparar com a
+  de baixo.
+- **O aviso de chave ausente saiu de dentro da aba** e passou a ficar no alto do modal. É a
+  única condição em que o chat está quebrado, e escondê-la atrás de uma aba que ninguém abriu
+  seria deixar de avisar justamente quem ainda não configurou nada.
+
 ## v1.4.2
 
 ### Alterado

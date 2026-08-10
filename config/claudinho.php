@@ -229,6 +229,10 @@ return [
     | acrescenta por conta própria as regras invariantes (não inventar dados,
     | respeitar escopo, formatar em pt-BR, quando usar gráfico).
     |
+    | Isto é o PADRÃO: a aba "Assistente" da engrenagem grava um contexto por
+    | cima, e o gravado vence — como no modelo e na chave. Esvaziar o campo em
+    | tela devolve o valor daqui.
+    |
     */
 
     'contexto' => 'Você é o assistente interno desta aplicação Laravel.',
@@ -239,12 +243,43 @@ return [
     |--------------------------------------------------------------------------
     |
     | Uma regra por item. É aqui que mora o conhecimento que NÃO está no schema
-    | e que o modelo não tem como adivinhar — o mecanismo de "aprendizado" do
-    | assistente é este arquivo crescer. Exemplos reais:
+    | e que o modelo não tem como adivinhar — o "aprendizado" do assistente é o
+    | glossário crescer.
     |
-    |   'funcionarios.is_obra guarda o id da obra em que a pessoa está
-    |    trabalhando naquele momento; é foto do instante, não lotação do período.',
-    |   'users.obra_scoped vazio significa acesso a todas as obras.',
+    | Duas formas de escrever, e as duas valem. Por assunto (recomendada, porque
+    | é como o glossário fica legível depois da vigésima regra):
+    |
+    |   'glossario' => [
+    |       'OBRAS' => [
+    |           'EMPREENDIMENTO e OBRA são a mesma coisa.',
+    |           'obras.divisao é Prime ou Easy; obras.linha_negocio é a linha.',
+    |       ],
+    |       'PPC' => [
+    |           'O "mês" do PPC é o período de medição, não o do calendário.',
+    |       ],
+    |   ],
+    |
+    | Ou em lista simples, como era antes dos assuntos existirem — continua
+    | funcionando, e as regras entram todas no bloco "sem assunto":
+    |
+    |   'glossario' => [
+    |       'users.obra_scoped vazio significa acesso a todas as obras.',
+    |   ],
+    |
+    | O assunto não é enfeite de tela: ele vira o título do bloco no system
+    | prompt. Numa lista corrida de dezenas de itens, a regra de PPC e a de
+    | documentos chegam ao modelo com o mesmo peso e sem vizinhança, e ele perde
+    | a pista de que "status" quer dizer coisas diferentes em cada assunto.
+    |
+    | Este array é o glossário de PARTIDA, para quem instala o pacote e para
+    | quem prefere versionar as regras no git. A partir da PRIMEIRA regra
+    | cadastrada na aba "Assistente" da engrenagem, ele deixa de valer inteiro:
+    | quem manda passa a ser a tabela claudinho_glossario. A própria tela tem o
+    | botão que importa o que estiver aqui, para não recadastrar nada à mão.
+    |
+    | Por que "deixa de valer inteiro" e não "soma": somar mandaria as duas
+    | versões da mesma regra para o modelo assim que alguém corrigisse uma frase
+    | em tela, e a regra velha seguiria no prompt sem ninguém saber por quê.
     |
     */
 

@@ -5,12 +5,14 @@ declare(strict_types=1);
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Rogga\Claudinho\AcaoBase;
 use Rogga\Claudinho\Contracts\ResolvedorDeUsuario;
 use Rogga\Claudinho\FerramentaBase;
 use Rogga\Claudinho\FerramentaRegistry;
 use Rogga\Claudinho\Models\Configuracao;
+use Rogga\Claudinho\Models\Regra;
 use Rogga\Claudinho\Tests\TestCase;
 
 uses(TestCase::class)->in(__DIR__);
@@ -111,8 +113,31 @@ function exigeBanco(): void
     // todos os seguintes, porque a migration já está registrada e não roda de novo.
     test()->artisan('migrate:fresh')->run();
 
-    // A memória de requisição do Configuracao é estática e atravessaria os testes.
+    // A memória de requisição do Configuracao e do Regra é estática e atravessaria
+    // os testes.
     Configuracao::esquecer();
+    Regra::esquecer();
+}
+
+/**
+ * Autentica um usuário e resolve o gate de administração como quiser.
+ *
+ * Aqui e não no ConfiguracoesTest porque o glossário tem arquivo próprio e usa a
+ * mesma tela: o Pest carrega cada arquivo isoladamente, e função declarada num
+ * deles não existe para o outro quando se roda um só.
+ */
+function comoAdmin(bool $permitido = true): void
+{
+    Gate::define('claudinho_admin', fn ($usuario): bool => $permitido);
+
+    $usuario = new class extends User
+    {
+        protected $table = 'users';
+    };
+
+    $usuario->forceFill(['id' => 1, 'name' => 'Admin']);
+
+    test()->actingAs($usuario);
 }
 
 /*

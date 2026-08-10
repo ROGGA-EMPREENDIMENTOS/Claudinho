@@ -7,6 +7,8 @@ namespace Rogga\Claudinho;
 use Closure;
 use Illuminate\Support\Facades\Auth;
 use Rogga\Claudinho\Contracts\Acao;
+use Rogga\Claudinho\Models\Configuracao;
+use Rogga\Claudinho\Models\Regra;
 use Throwable;
 
 /**
@@ -373,20 +375,24 @@ class Conversa
 
     /**
      * Contexto e glossário vêm da aplicação; as regras invariantes são do pacote.
+     *
+     * Os dois primeiros são cadastrados em tela, com o config como padrão — é a mesma
+     * precedência do modelo e da chave. Quem sabe a regra de negócio é quem opera, e
+     * até aqui corrigir uma frase do glossário custava um deploy.
      */
     public function systemPrompt(): string
     {
         $usuario = Auth::user()?->name ?? 'usuário';
         $hoje = now()->format('d/m/Y');
-        $contexto = trim((string) config('claudinho.contexto', ''));
+        $contexto = trim((string) Configuracao::valor('contexto', (string) config('claudinho.contexto', '')));
         $temAcoes = $this->comAcoes && app(FerramentaRegistry::class)->temAcoes();
 
         $partes = [$contexto, "Você está conversando com {$usuario}. Hoje é {$hoje}."];
 
-        $glossario = array_filter((array) config('claudinho.glossario', []));
+        $glossario = Regra::glossario();
 
         if ($glossario !== []) {
-            $partes[] = "Regras de negócio desta aplicação:\n- ".implode("\n- ", $glossario);
+            $partes[] = $this->glossarioEmTexto($glossario);
         }
 
         // Afirmar "somente-leitura" quando existe ação exposta seria o próprio
@@ -447,6 +453,37 @@ class Conversa
         $partes[] = $this->instrucoes;
 
         return implode("\n\n", array_filter($partes));
+    }
+
+    /**
+     * O glossário como texto, um bloco por assunto.
+     *
+     * Agrupar não é enfeite: numa lista corrida de dezenas de itens, a regra de PPC
+     * e a de documentos chegam ao modelo com o mesmo peso e sem vizinhança, e ele
+     * perde a pista de que "status" quer dizer coisas diferentes em cada assunto. O
+     * título do bloco é o contexto que a regra sozinha não carrega.
+     *
+     * Sem tema nenhum, o texto sai exatamente como saía antes dos temas existirem.
+     *
+     * @param  array<string, array<int, string>>  $glossario
+     */
+    private function glossarioEmTexto(array $glossario): string
+    {
+        $temas = array_filter(array_keys($glossario), fn (string $tema): bool => $tema !== '');
+
+        $blocos = [];
+
+        foreach ($glossario as $tema => $regras) {
+            $lista = '- '.implode("\n- ", $regras);
+
+            $blocos[] = $tema === '' ? $lista : $tema."\n".$lista;
+        }
+
+        $cabecalho = $temas === []
+            ? 'Regras de negócio desta aplicação:'
+            : 'Regras de negócio desta aplicação, agrupadas por assunto:';
+
+        return $cabecalho."\n\n".implode("\n\n", $blocos);
     }
 
     /**
