@@ -9,6 +9,7 @@ use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Rogga\Claudinho\Models\Configuracao;
 use RuntimeException;
 use stdClass;
@@ -20,6 +21,26 @@ use stdClass;
 class Claude
 {
     private const VERSAO_API = '2023-06-01';
+
+    /**
+     * Raciocínio adaptativo e output_config.effort existem a partir da geração 4.6.
+     * Haiku 4.5 e anteriores respondem 400 ("adaptive thinking is not supported on
+     * this model"). Modelo fora desta lista vai sem os dois campos: a resposta
+     * perde profundidade, mas a requisição funciona — o contrário de quebrar quem
+     * escolheu um modelo mais barato em tela.
+     *
+     * Prefixo, e não igualdade, para cobrir os IDs com sufixo de data.
+     */
+    private const MODELOS_COM_RACIOCINIO = [
+        'claude-opus-5',
+        'claude-sonnet-5',
+        'claude-fable-5',
+        'claude-mythos-5',
+        'claude-opus-4-8',
+        'claude-opus-4-7',
+        'claude-opus-4-6',
+        'claude-sonnet-4-6',
+    ];
 
     private string $url = 'https://api.anthropic.com/v1/messages';
 
@@ -169,9 +190,12 @@ class Claude
             'model' => $this->model,
             'max_tokens' => $this->maxTokens,
             'messages' => $this->normalizaMensagens($mensagens),
-            'thinking' => ['type' => 'adaptive'],
-            'output_config' => ['effort' => $this->effort],
         ];
+
+        if (self::suportaRaciocinio($this->model)) {
+            $payload['thinking'] = ['type' => 'adaptive'];
+            $payload['output_config'] = ['effort' => $this->effort];
+        }
 
         if (filled($system)) {
             // O breakpoint de cache no system cobre também as definições de
@@ -194,6 +218,17 @@ class Claude
         }
 
         return $payload;
+    }
+
+    /**
+     * Público e estático porque a aplicação também monta requisição própria à API
+     * — a análise de documentos do SGT é uma — e precisa da mesma resposta. Duas
+     * listas de modelos em lugares diferentes envelheceriam separadas, e a segunda
+     * só daria sinal de vida quando alguém trocasse o modelo em tela e levasse 400.
+     */
+    public static function suportaRaciocinio(string $model): bool
+    {
+        return Str::startsWith($model, self::MODELOS_COM_RACIOCINIO);
     }
 
     /**

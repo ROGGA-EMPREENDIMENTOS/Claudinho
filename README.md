@@ -190,6 +190,19 @@ O select de modelos vem de `config('claudinho.modelos')` — é só a lista da U
 vontade. Um modelo gravado que saiu da lista continua selecionável, para o select não trocar
 o modelo de produção sozinho.
 
+Raciocínio adaptativo e `effort` só existem da geração 4.6 em diante. Em Haiku 4.5 e
+anteriores os dois campos nem entram no payload — a API recusa a requisição inteira quando
+aparecem —, então o modelo responde sem raciocinar antes, mais rápido e mais barato, e erra
+mais na escolha da ferramenta. Se a sua aplicação monta requisição própria à API (uma análise
+de arquivo em fila, por exemplo), pergunte pela mesma regra em vez de repetir a lista:
+
+```php
+if (\Rogga\Claudinho\Claude::suportaRaciocinio($modelo)) {
+    $payload['thinking'] = ['type' => 'adaptive'];
+    $payload['output_config'] = ['effort' => config('claudinho.effort')];
+}
+```
+
 ### Documentação da API na própria tela
 
 A seção *Documentação da API* é embutida em vez de link, porque só ela sabe a URL **deste**

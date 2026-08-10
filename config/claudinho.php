@@ -26,13 +26,15 @@ return [
     'modelos' => [
         'claude-sonnet-5' => 'Sonnet 5 — padrão: melhor equilíbrio custo/capacidade',
         'claude-opus-5' => 'Opus 5 — mais capaz em raciocínio, custo mais alto',
-        'claude-haiku-4-5' => 'Haiku 4.5 — mais rápido e barato, para perguntas simples',
+        'claude-haiku-4-5' => 'Haiku 4.5 — mais rápido e barato, sem raciocínio adaptativo',
     ],
 
     'max_tokens' => env('ANTHROPIC_MAX_TOKENS', 16000),
 
     // low | medium | high | xhigh | max — quanto o modelo raciocina antes de responder.
-    // medium é o padrão por latência: o chat é síncrono.
+    // medium é o padrão por latência: o chat é síncrono. Só vale para modelos da
+    // geração 4.6 em diante; em Haiku 4.5 e anteriores o campo nem é enviado,
+    // porque a API recusa a requisição inteira quando ele aparece.
     'effort' => env('ANTHROPIC_EFFORT', 'medium'),
 
     'timeout' => env('ANTHROPIC_TIMEOUT', 120),

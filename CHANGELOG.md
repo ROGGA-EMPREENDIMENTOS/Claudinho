@@ -1,5 +1,35 @@
 # Changelog
 
+## v1.6.0
+
+### Corrigido
+
+- **Trocar o modelo para Haiku 4.5 em tela quebrava o chat inteiro**, com HTTP 400 e
+  `adaptive thinking is not supported on this model` em qualquer pergunta. O payload mandava
+  `thinking: adaptive` e `output_config.effort` em toda requisição, e os dois campos só
+  existem da geração 4.6 em diante. Não era uma resposta pior num modelo mais fraco: era o
+  modelo do select do pacote derrubando o assistente na primeira pergunta.
+  - Modelo fora da lista de suporte vai **sem** os dois campos, em vez de a requisição ser
+    recusada. A lista é de modelos suportados, e não de exceções, de propósito: modelo
+    desconhecido — inclusive o que alguém digitar fora do `config` — responde sem raciocinar,
+    e não com 400.
+  - O casamento é por prefixo, para os IDs com sufixo de data continuarem reconhecidos.
+
+### Adicionado
+
+- **`Claude::suportaRaciocinio(string $model)`**, público, para quem monta requisição própria
+  à API — uma análise de arquivo em fila, por exemplo — perguntar pela mesma regra em vez de
+  repetir a lista de modelos do lado da aplicação. Duas listas em lugares diferentes
+  envelhecem separadas, e a segunda só dá sinal de vida quando alguém troca o modelo em tela
+  e leva 400.
+
+### Alterado
+
+- **O botão *Limpar conversa* fica só com o ícone no mobile e no chat flutuante**, quadrado
+  como os vizinhos do header. O flutuante não depende de breakpoint: o painel tem 26rem fixos
+  mesmo no desktop, e era justamente lá que o rótulo espremia o título contra os outros
+  botões. O nome acessível passou para `aria-label`, que vale nos dois casos.
+
 ## v1.5.0
 
 ### Adicionado

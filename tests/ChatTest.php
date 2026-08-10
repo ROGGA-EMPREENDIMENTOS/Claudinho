@@ -38,6 +38,29 @@ it('mantém o nome acessível do botão enviar, que só tem ícone', function ()
         ->assertDontSee('>Enviar<', false);
 });
 
+it('mostra o rótulo do botão limpar no card inline, onde há largura para ele', function () {
+    $componente = Livewire::test(Chat::class);
+
+    // Sem conversa não há o que limpar, e o botão nem existe.
+    $componente->assertDontSee('aria-label="Limpar conversa"', false);
+
+    $componente->set('pergunta', 'quantas obras ativas?')->call('enviar');
+
+    $componente
+        ->assertSee('aria-label="Limpar conversa"', false)
+        ->assertSee('>Limpar conversa</span>', false);
+});
+
+it('deixa só o ícone no botão limpar quando o chat é flutuante', function () {
+    // O painel tem 26rem fixos mesmo no desktop: aqui o rótulo sai por largura do
+    // painel, não por viewport — por isso não dá para resolver com breakpoint.
+    Livewire::test(Chat::class, ['flutuante' => true])
+        ->set('pergunta', 'quantas obras ativas?')
+        ->call('enviar')
+        ->assertSee('aria-label="Limpar conversa"', false)
+        ->assertDontSee('>Limpar conversa</span>', false);
+});
+
 it('troca o cursor pelo Claudinho animado enquanto responde', function () {
     $componente = Livewire::test(Chat::class);
 

@@ -51,6 +51,53 @@ it('envia model, headers e system com cache_control no payload', function () {
     });
 });
 
+it('omite thinking e effort no payload quando o modelo não suporta raciocínio adaptativo', function () {
+    config(['claudinho.model' => 'claude-haiku-4-5']);
+
+    Http::fake([
+        'api.anthropic.com/v1/messages' => Http::response([
+            'stop_reason' => 'end_turn',
+            'content' => [['type' => 'text', 'text' => 'ok']],
+        ]),
+    ]);
+
+    (new Claude)->mensagem([['role' => 'user', 'content' => 'liste as obras']]);
+
+    Http::assertSent(function ($request) {
+        return $request['model'] === 'claude-haiku-4-5'
+            && ! isset($request['thinking'])
+            && ! isset($request['output_config']);
+    });
+});
+
+it('reconhece o modelo com sufixo de data como suportado', function () {
+    config(['claudinho.model' => 'claude-opus-5-20260101']);
+
+    Http::fake([
+        'api.anthropic.com/v1/messages' => Http::response([
+            'stop_reason' => 'end_turn',
+            'content' => [['type' => 'text', 'text' => 'ok']],
+        ]),
+    ]);
+
+    (new Claude)->mensagem([['role' => 'user', 'content' => 'oi']]);
+
+    Http::assertSent(fn ($request) => $request['thinking']['type'] === 'adaptive');
+});
+
+it('responde quais modelos suportam raciocínio adaptativo para quem monta requisição própria', function (string $model, bool $esperado) {
+    expect(Claude::suportaRaciocinio($model))->toBe($esperado);
+})->with([
+    ['claude-opus-5', true],
+    ['claude-sonnet-5', true],
+    ['claude-sonnet-4-6', true],
+    ['claude-sonnet-5-20260101', true],
+    ['claude-haiku-4-5', false],
+    ['claude-haiku-4-5-20251001', false],
+    ['claude-sonnet-4-5', false],
+    ['claude-3-haiku-20240307', false],
+]);
+
 it('omite o system quando não informado', function () {
     Http::fake([
         'api.anthropic.com/v1/messages' => Http::response([
