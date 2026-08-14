@@ -246,7 +246,7 @@ it('não oferece nem executa ação quando o canal é somente-leitura', function
 });
 
 it('devolve 502 sem inutilizar a conversa quando a API falha', function () {
-    Http::fake([
+    httpClaude()->fake([
         'api.anthropic.com/v1/messages' => Http::response(
             ['error' => ['message' => 'sobrecarregado']], 529
         ),

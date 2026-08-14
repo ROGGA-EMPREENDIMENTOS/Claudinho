@@ -5,7 +5,6 @@ declare(strict_types=1);
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use Rogga\Claudinho\AcaoBase;
 use Rogga\Claudinho\Livewire\Chat;
@@ -279,7 +278,7 @@ it('só fala de alteração no system prompt quando há ação exposta', functio
 
     Livewire::test(Chat::class)->set('pergunta', 'oi')->call('enviar')->call('responder');
 
-    Http::assertSent(function ($request) {
+    httpClaude()->assertSent(function ($request) {
         $system = $request['system'][0]['text'];
 
         return str_contains($system, 'somente-leitura')
@@ -293,7 +292,7 @@ it('instrui o modelo a chamar a ação em vez de pedir permissão por texto', fu
 
     Livewire::test(Chat::class)->set('pergunta', 'oi')->call('enviar')->call('responder');
 
-    Http::assertSent(function ($request) {
+    httpClaude()->assertSent(function ($request) {
         $system = $request['system'][0]['text'];
 
         return str_contains($system, 'ferramentas que alteram dados')

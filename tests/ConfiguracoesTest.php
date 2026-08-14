@@ -5,7 +5,6 @@ declare(strict_types=1);
 use Illuminate\Encryption\Encrypter;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 use Rogga\Claudinho\Claude;
@@ -60,7 +59,7 @@ it('usa no payload da API o modelo definido em tela', function () {
 
     eventosDe((new Claude)->stream([['role' => 'user', 'content' => 'oi']]));
 
-    Http::assertSent(
+    httpClaude()->assertSent(
         fn ($request) => $request['model'] === 'claude-opus-5'
             && $request->header('x-api-key') === ['sk-ant-da-tela']
     );

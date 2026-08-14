@@ -783,6 +783,42 @@ composer install
 ./vendor/bin/pest
 ```
 
+### Fakeando a API nos testes da sua aplicação
+
+A chamada à API **não** passa pelo facade `Http`, e sim por um cliente próprio do pacote
+(`Rogga\Claudinho\Http\ClienteHttp`). O motivo está na seção seguinte. Consequência
+prática: `Http::fake()` não intercepta o Claudinho — o fake tem que ir no cliente dele.
+
+```php
+use Illuminate\Support\Facades\Http;
+use Rogga\Claudinho\Http\ClienteHttp;
+
+app(ClienteHttp::class)->fake([
+    'api.anthropic.com/v1/messages' => Http::response(
+        "event: message_stop\ndata: {\"type\":\"message_stop\"}\n"
+    ),
+]);
+```
+
+É a mesma `Factory` do HTTP client do Laravel, então `fake()`, `sequence()`,
+`assertSent()` e `assertSentCount()` funcionam igual — só mudam de instância. O corpo é
+SSE, porque o chat consome a resposta em streaming.
+
+### Por que a chamada não usa o facade `Http`
+
+A resposta do stream chega em pedaços e é lida linha por linha: o corpo não se rebobina.
+Quem escuta os eventos do HTTP client do Laravel — **Clockwork**, Telescope, Debugbar —
+rebobina o corpo para registrar a resposta, e a requisição morre em `Stream is not
+seekable`. Com o Clockwork instalado em `require-dev` e ativo em local, era a primeira
+pergunta do chat que morria. Listener que lê sem rebobinar é pior: não estoura, consome o
+stream que o chat ainda não leu e a resposta chega vazia.
+
+Não é bug de quem escuta: gravar uma resposta que só pode ser lida uma vez é impossível.
+A `Factory` do pacote não tem event dispatcher, então não dispara `RequestSending` nem
+`ResponseReceived` e a chamada não passa por listener nenhum. O preço é ela não aparecer
+no painel de HTTP dessas ferramentas. O HTTP client da sua aplicação continua intacto,
+com os eventos dele.
+
 ## Licença
 
 MIT.

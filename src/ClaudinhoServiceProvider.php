@@ -11,6 +11,7 @@ use Livewire\Livewire;
 use Rogga\Claudinho\Console\LimparConversas;
 use Rogga\Claudinho\Contracts\Ferramenta;
 use Rogga\Claudinho\Ferramentas\GerarGrafico;
+use Rogga\Claudinho\Http\ClienteHttp;
 use Rogga\Claudinho\Http\Controllers\ConversaController;
 use Rogga\Claudinho\Http\Middleware\AutenticaCanal;
 use Rogga\Claudinho\Livewire\Chat;
@@ -22,6 +23,10 @@ class ClaudinhoServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/claudinho.php', 'claudinho');
+
+        // Singleton porque é nesta instância que o fake dos testes precisa cair — a
+        // do pacote e a de quem instala. Ver ClienteHttp.
+        $this->app->singleton(ClienteHttp::class);
 
         $this->app->singleton(FerramentaRegistry::class, function ($app): FerramentaRegistry {
             $registro = new FerramentaRegistry;

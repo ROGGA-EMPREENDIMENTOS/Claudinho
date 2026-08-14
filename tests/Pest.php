@@ -11,11 +11,24 @@ use Rogga\Claudinho\AcaoBase;
 use Rogga\Claudinho\Contracts\ResolvedorDeUsuario;
 use Rogga\Claudinho\FerramentaBase;
 use Rogga\Claudinho\FerramentaRegistry;
+use Rogga\Claudinho\Http\ClienteHttp;
 use Rogga\Claudinho\Models\Configuracao;
 use Rogga\Claudinho\Models\Regra;
 use Rogga\Claudinho\Tests\TestCase;
 
 uses(TestCase::class)->in(__DIR__);
+
+/**
+ * O cliente HTTP do pacote, que não é o facade Http: é nele que o fake e as asserções
+ * precisam cair, porque é ele que o Claude usa (ver ClienteHttp).
+ *
+ * Http::response() continua servindo, porque é só o construtor da resposta falsa e não
+ * tem lado nenhum nisso.
+ */
+function httpClaude(): ClienteHttp
+{
+    return app(ClienteHttp::class);
+}
 
 /**
  * Monta um corpo SSE no mesmo formato que a API devolve.
@@ -35,7 +48,7 @@ function sseBody(array $eventos): string
 
 function fakeStream(array $eventos): void
 {
-    Http::fake([
+    httpClaude()->fake([
         'api.anthropic.com/v1/messages' => Http::response(sseBody($eventos)),
     ]);
 }
@@ -46,13 +59,13 @@ function fakeStream(array $eventos): void
  */
 function fakeStreams(array ...$rodadas): void
 {
-    $sequencia = Http::sequence();
+    $sequencia = httpClaude()->sequence();
 
     foreach ($rodadas as $eventos) {
         $sequencia->push(sseBody($eventos));
     }
 
-    Http::fake(['api.anthropic.com/v1/messages' => $sequencia]);
+    httpClaude()->fake(['api.anthropic.com/v1/messages' => $sequencia]);
 }
 
 /**

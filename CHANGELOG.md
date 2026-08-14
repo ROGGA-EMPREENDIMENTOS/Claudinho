@@ -1,5 +1,32 @@
 # Changelog
 
+## v1.6.1
+
+### Corrigido
+
+- **Aplicação com Clockwork instalado não conseguia fazer nenhuma pergunta**: a primeira
+  falhava com `Stream is not seekable`. A resposta do stream chega em pedaços e é lida linha
+  por linha — o corpo não se rebobina —, e quem escuta os eventos do HTTP client do Laravel
+  (Clockwork, Telescope, Debugbar) rebobina o corpo para registrar a resposta. O listener que
+  não rebobina é ainda pior: não estoura, consome o stream que o chat ainda não leu e a
+  resposta chega vazia. Não é bug de quem escuta — gravar uma resposta que só pode ser lida
+  uma vez é impossível.
+  - A chamada à API passou a usar uma `Factory` própria do HTTP client, **sem event
+    dispatcher** (`Rogga\Claudinho\Http\ClienteHttp`): sem dispatcher não há
+    `RequestSending` nem `ResponseReceived`, então a requisição não passa por listener
+    nenhum. O HTTP client da aplicação fica intacto, com os eventos dele.
+  - O preço é a chamada à API não aparecer no painel de HTTP dessas ferramentas. As duas
+    chamadas do pacote — o stream e a mensagem avulsa — usam o mesmo cliente de propósito:
+    transporte com dois caminhos de rede, um observável e outro não, custa mais do que a
+    linha que se perde no painel.
+
+### Alterado
+
+- **`Http::fake()` não intercepta mais o Claudinho** nos testes de quem instala o pacote,
+  pela mesma razão: a chamada não passa pelo facade. O fake vai no cliente do pacote —
+  `app(ClienteHttp::class)->fake([...])` —, que é a mesma `Factory` do Laravel e mantém
+  `sequence()`, `assertSent()` e `assertSentCount()`. Ver [Testes](README.md#testes).
+
 ## v1.6.0
 
 ### Corrigido

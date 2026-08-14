@@ -1,7 +1,10 @@
 <?php
 
-use Rogga\Claudinho\Claude;
+use Illuminate\Http\Client\Events\RequestSending;
+use Illuminate\Http\Client\Events\ResponseReceived;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Rogga\Claudinho\Claude;
 
 beforeEach(function () {
     config([
@@ -14,7 +17,7 @@ beforeEach(function () {
 });
 
 it('devolve o texto concatenado dos blocos de texto da resposta', function () {
-    Http::fake([
+    httpClaude()->fake([
         'api.anthropic.com/v1/messages' => Http::response([
             'stop_reason' => 'end_turn',
             'content' => [
@@ -31,7 +34,7 @@ it('devolve o texto concatenado dos blocos de texto da resposta', function () {
 });
 
 it('envia model, headers e system com cache_control no payload', function () {
-    Http::fake([
+    httpClaude()->fake([
         'api.anthropic.com/v1/messages' => Http::response([
             'stop_reason' => 'end_turn',
             'content' => [['type' => 'text', 'text' => 'ok']],
@@ -40,7 +43,7 @@ it('envia model, headers e system com cache_control no payload', function () {
 
     (new Claude)->mensagem([['role' => 'user', 'content' => 'oi']], 'Você é o assistente do SGT.');
 
-    Http::assertSent(function ($request) {
+    httpClaude()->assertSent(function ($request) {
         return $request->hasHeader('x-api-key', 'fake-key')
             && $request->hasHeader('anthropic-version', '2023-06-01')
             && $request['model'] === 'claude-opus-5'
@@ -54,7 +57,7 @@ it('envia model, headers e system com cache_control no payload', function () {
 it('omite thinking e effort no payload quando o modelo não suporta raciocínio adaptativo', function () {
     config(['claudinho.model' => 'claude-haiku-4-5']);
 
-    Http::fake([
+    httpClaude()->fake([
         'api.anthropic.com/v1/messages' => Http::response([
             'stop_reason' => 'end_turn',
             'content' => [['type' => 'text', 'text' => 'ok']],
@@ -63,7 +66,7 @@ it('omite thinking e effort no payload quando o modelo não suporta raciocínio 
 
     (new Claude)->mensagem([['role' => 'user', 'content' => 'liste as obras']]);
 
-    Http::assertSent(function ($request) {
+    httpClaude()->assertSent(function ($request) {
         return $request['model'] === 'claude-haiku-4-5'
             && ! isset($request['thinking'])
             && ! isset($request['output_config']);
@@ -73,7 +76,7 @@ it('omite thinking e effort no payload quando o modelo não suporta raciocínio 
 it('reconhece o modelo com sufixo de data como suportado', function () {
     config(['claudinho.model' => 'claude-opus-5-20260101']);
 
-    Http::fake([
+    httpClaude()->fake([
         'api.anthropic.com/v1/messages' => Http::response([
             'stop_reason' => 'end_turn',
             'content' => [['type' => 'text', 'text' => 'ok']],
@@ -82,7 +85,7 @@ it('reconhece o modelo com sufixo de data como suportado', function () {
 
     (new Claude)->mensagem([['role' => 'user', 'content' => 'oi']]);
 
-    Http::assertSent(fn ($request) => $request['thinking']['type'] === 'adaptive');
+    httpClaude()->assertSent(fn ($request) => $request['thinking']['type'] === 'adaptive');
 });
 
 it('responde quais modelos suportam raciocínio adaptativo para quem monta requisição própria', function (string $model, bool $esperado) {
@@ -99,7 +102,7 @@ it('responde quais modelos suportam raciocínio adaptativo para quem monta requi
 ]);
 
 it('omite o system quando não informado', function () {
-    Http::fake([
+    httpClaude()->fake([
         'api.anthropic.com/v1/messages' => Http::response([
             'stop_reason' => 'end_turn',
             'content' => [['type' => 'text', 'text' => 'ok']],
@@ -108,11 +111,11 @@ it('omite o system quando não informado', function () {
 
     (new Claude)->mensagem([['role' => 'user', 'content' => 'oi']]);
 
-    Http::assertSent(fn ($request) => ! isset($request['system']));
+    httpClaude()->assertSent(fn ($request) => ! isset($request['system']));
 });
 
 it('lança exceção com a mensagem de erro devolvida pela api', function () {
-    Http::fake([
+    httpClaude()->fake([
         'api.anthropic.com/v1/messages' => Http::response([
             'error' => ['message' => 'credit balance is too low'],
         ], 400),
@@ -123,7 +126,7 @@ it('lança exceção com a mensagem de erro devolvida pela api', function () {
 });
 
 it('lança exceção quando o modelo recusa a solicitação', function () {
-    Http::fake([
+    httpClaude()->fake([
         'api.anthropic.com/v1/messages' => Http::response([
             'stop_reason' => 'refusal',
             'content' => [],
@@ -207,7 +210,7 @@ it('envia tools e stream true no payload quando as ferramentas são informadas',
 
     eventosDe((new Claude)->stream([['role' => 'user', 'content' => 'oi']], null, $tools));
 
-    Http::assertSent(function ($request) {
+    httpClaude()->assertSent(function ($request) {
         return $request['stream'] === true
             && $request['tools'][0]['name'] === 'status_ppc';
     });
@@ -218,7 +221,7 @@ it('omite tools no payload quando nenhuma ferramenta é informada', function () 
 
     eventosDe((new Claude)->stream([['role' => 'user', 'content' => 'oi']]));
 
-    Http::assertSent(fn ($request) => ! isset($request['tools']));
+    httpClaude()->assertSent(fn ($request) => ! isset($request['tools']));
 });
 
 it('serializa input vazio de tool_use como objeto e não como array', function () {
@@ -238,7 +241,7 @@ it('serializa input vazio de tool_use como objeto e não como array', function (
     eventosDe((new Claude)->stream($historico));
 
     // "input":[] devolve 400 da API: messages.N.content.M.tool_use.input: Input should be an object
-    Http::assertSent(function ($request) {
+    httpClaude()->assertSent(function ($request) {
         return str_contains($request->body(), '"input":{}')
             && ! str_contains($request->body(), '"input":[]');
     });
@@ -259,7 +262,36 @@ it('preserva input preenchido de tool_use na serialização', function () {
 
     eventosDe((new Claude)->stream($historico));
 
-    Http::assertSent(fn ($request) => str_contains($request->body(), '"input":{"dias":15}'));
+    httpClaude()->assertSent(fn ($request) => str_contains($request->body(), '"input":{"dias":15}'));
+});
+
+it('não passa a chamada pelos eventos do HTTP client do Laravel', function () {
+    // Clockwork, Telescope e Debugbar escutam ResponseReceived e rebobinam o corpo da
+    // resposta para registrá-la. O corpo do stream não é seekable: rebobinar derruba a
+    // requisição com "Stream is not seekable", e ler sem rebobinar consome o stream que
+    // o chat ainda não leu. Com o Clockwork instalado, era a primeira pergunta morrendo.
+    $vistos = [];
+
+    Event::listen(RequestSending::class, function () use (&$vistos): void {
+        $vistos[] = 'request';
+    });
+
+    Event::listen(ResponseReceived::class, function (ResponseReceived $evento) use (&$vistos): void {
+        $vistos[] = 'response';
+
+        $evento->response->toPsrResponse()->getBody()->rewind();
+    });
+
+    fakeStream([
+        ['type' => 'content_block_delta', 'index' => 0, 'delta' => ['type' => 'text_delta', 'text' => 'Boa tarde!']],
+        ['type' => 'message_delta', 'delta' => ['stop_reason' => 'end_turn']],
+        ['type' => 'message_stop'],
+    ]);
+
+    $eventos = eventosDe((new Claude)->stream([['role' => 'user', 'content' => 'oi']]));
+
+    expect($vistos)->toBe([])
+        ->and(collect($eventos)->where('tipo', 'texto')->pluck('conteudo')->implode(''))->toBe('Boa tarde!');
 });
 
 it('lança exceção quando o stream devolve um evento de erro', function () {

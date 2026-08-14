@@ -5,7 +5,6 @@ declare(strict_types=1);
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Http;
 use Rogga\Claudinho\Conversa;
 use Rogga\Claudinho\FerramentaRegistry;
 
@@ -100,7 +99,7 @@ it('deixa a conversa sem pendência quando o canal não aceita ações', functio
     expect($conversa->pausada())->toBeFalse()
         ->and(CancelarPedido::$executadas)->toBe([]);
 
-    Http::assertSent(function ($request) {
+    httpClaude()->assertSent(function ($request) {
         $nomes = collect($request['tools'] ?? [])->pluck('name')->all();
 
         return in_array('buscar_pedido', $nomes, true)
@@ -118,7 +117,7 @@ it('não fala de alteração no prompt quando o canal é somente-leitura', funct
 
     // Prometer alteração num canal que não a oferece é convite para o modelo
     // dizer que vai fazer o que não pode.
-    Http::assertSent(fn ($request) => str_contains($request['system'][0]['text'], 'somente-leitura')
+    httpClaude()->assertSent(fn ($request) => str_contains($request['system'][0]['text'], 'somente-leitura')
         && ! str_contains($request['system'][0]['text'], 'ferramentas que alteram dados'));
 });
 
@@ -129,7 +128,7 @@ it('põe as instruções do canal no fim do prompt, para vencerem as regras do p
     $conversa->perguntar('oi');
     $conversa->responder();
 
-    Http::assertSent(function ($request) {
+    httpClaude()->assertSent(function ($request) {
         $system = $request['system'][0]['text'];
 
         // Depois da regra que manda usar tabela: instrução mais recente é a que vale.
@@ -174,10 +173,11 @@ it('recusa tudo de uma vez e liberta a conversa', function () {
 it('fecha o tool_use aberto quando o loop estoura, e propaga o erro', function () {
     registro([new BuscarPedido]);
 
-    Http::fake(['api.anthropic.com/v1/messages' => Http::sequence()
+    $sequencia = httpClaude()->sequence()
         ->push(sseBody(rodadaToolUse('toolu_q', 'buscar_pedido', ['pedido' => 4821])))
-        ->push(json_encode(['error' => ['message' => 'sobrecarregado']]), 529),
-    ]);
+        ->push(json_encode(['error' => ['message' => 'sobrecarregado']]), 529);
+
+    httpClaude()->fake(['api.anthropic.com/v1/messages' => $sequencia]);
 
     $conversa = new Conversa;
     $conversa->perguntar('e o 4821?');
@@ -211,7 +211,7 @@ it('respeita max_iteracoes para o loop não girar sozinho', function () {
     expect($conversa->estado()['iteracao'])->toBe(2);
 
     // O que importa de verdade: o teto corta chamadas à API, não só o contador.
-    Http::assertSentCount(2);
+    httpClaude()->assertSentCount(2);
 });
 
 it('devolve a lista de ferramentas cheia quando o canal aceita ações', function () {
@@ -222,7 +222,7 @@ it('devolve a lista de ferramentas cheia quando o canal aceita ações', functio
     $conversa->perguntar('oi');
     $conversa->responder();
 
-    Http::assertSent(function ($request) {
+    httpClaude()->assertSent(function ($request) {
         $nomes = collect($request['tools'] ?? [])->pluck('name')->all();
 
         return in_array('cancelar_pedido', $nomes, true);
@@ -262,5 +262,5 @@ it('não vaza ferramenta de outro registro entre conversas', function () {
     $segunda->perguntar('oi');
     $segunda->responder();
 
-    Http::assertSent(fn ($request) => ($request['tools'] ?? []) === []);
+    httpClaude()->assertSent(fn ($request) => ($request['tools'] ?? []) === []);
 });

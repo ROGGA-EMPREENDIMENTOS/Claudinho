@@ -8,8 +8,8 @@ use Generator;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Rogga\Claudinho\Http\ClienteHttp;
 use Rogga\Claudinho\Models\Configuracao;
 use RuntimeException;
 use stdClass;
@@ -263,7 +263,9 @@ class Claude
             throw new RuntimeException('Integração com o Claude não configurada: defina ANTHROPIC_API_KEY.');
         }
 
-        return Http::withHeaders([
+        // O cliente do pacote, e não o facade Http: a chamada não pode passar pelos
+        // eventos do HTTP client do Laravel. Ver ClienteHttp.
+        return app(ClienteHttp::class)->withHeaders([
             'x-api-key' => $this->apiKey,
             'anthropic-version' => self::VERSAO_API,
             'content-type' => 'application/json',
