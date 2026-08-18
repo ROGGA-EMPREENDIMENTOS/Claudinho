@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.6.3
+
+### Alterado
+
+- **`laravel/framework` passou a aceitar o `^13.0`**, junto com o `^11.0` e o `^12.0` que já
+  valiam. O pacote não usava nada que a 13 tenha tirado — o que barrava a instalação numa
+  aplicação já atualizada era só a restrição do `composer.json`.
+- **`orchestra/testbench` foi para `^9.0|^10.0|^11.0`**, para a suíte não só *instalar* como
+  também *rodar* no Laravel 13: o testbench 10 exige `laravel/framework ^12`, então sem o
+  `^11.0` os testes do pacote continuariam presos à 12 enquanto o pacote se anunciava
+  compatível com a 13. A suíte passa igual nas duas — mesmo número de testes, mesmas
+  asserções.
+  - O testbench 11 pede **PHP ^8.3**, e o pacote continua em `^8.2` de propósito: quem
+    desenvolve em 8.2 resolve para o testbench 10 e testa contra a 12, sem perder nada.
+
 ## v1.6.1
 
 ### Corrigido
