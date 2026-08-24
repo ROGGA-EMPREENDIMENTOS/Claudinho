@@ -36,6 +36,29 @@ class Recebedor
     /** Os formatos que a API do modelo enxerga. Fora deles, só o arquivo. */
     private const FORMATOS_DE_VISAO = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
+    /**
+     * O que se aceita quando a configuração não diz.
+     *
+     * Existe porque o mergeConfigFrom é RASO: a aplicação que publicou o config
+     * na 1.6 tem o bloco `api` inteiro dela, e a chave `midias` que este release
+     * acrescenta não chega lá. Sem este padrão, ligar a funcionalidade num
+     * consumidor antigo recusaria toda mídia com "tipo não aceito" — e o motivo
+     * não estaria em lugar nenhum que ele fosse olhar.
+     *
+     * Vale para `tipos` e para todos os demais valores deste arquivo: o segundo
+     * argumento de cada config() é o padrão de verdade, não um enfeite. Só
+     * `habilitado` e `destino` precisam ser escritos pela aplicação.
+     */
+    private const TIPOS_PADRAO = [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+        'image/gif',
+        'video/mp4',
+        'video/3gpp',
+        'video/quicktime',
+    ];
+
     /** Acima disto a imagem é reduzida antes de subir: 1568px é o lado que o modelo aproveita. */
     private const BYTES_PARA_REDUZIR = 1_000_000;
 
@@ -444,6 +467,6 @@ class Recebedor
      */
     private function aceitos(): array
     {
-        return array_map('strtolower', (array) config('claudinho.api.midias.tipos', []));
+        return array_map('strtolower', (array) config('claudinho.api.midias.tipos', self::TIPOS_PADRAO));
     }
 }

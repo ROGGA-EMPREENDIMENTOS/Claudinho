@@ -214,6 +214,11 @@ return [
             // Só o que a aplicação sabe receber. Imagem dos quatro primeiros o
             // modelo também consegue LER; vídeo ele não assiste, e por isso o
             // assistente pede a descrição em texto.
+            //
+            // Esta lista e as chaves abaixo têm o mesmo padrão dentro do pacote:
+            // quem já tinha o config publicado antes da 1.7 não precisa copiá-las,
+            // só acrescentar `habilitado` e `destino`. O mergeConfigFrom é raso e
+            // não alcançaria um bloco `api` que a aplicação já sobrescreve.
             'tipos' => [
                 'image/jpeg',
                 'image/png',

@@ -279,3 +279,24 @@ class DestinoQueEstoura implements DestinoDeMidia
         throw new RuntimeException('disco cheio');
     }
 }
+
+/**
+ * O mergeConfigFrom é raso: quem publicou o config antes da 1.7 tem o bloco `api`
+ * inteiro dele, e a chave `midias` deste release não chega lá. Sem padrão dentro
+ * do pacote, ligar a funcionalidade num consumidor antigo recusaria toda mídia
+ * com "tipo não aceito", e o motivo não estaria em lugar nenhum que ele olhasse.
+ */
+it('funciona com o config publicado de uma versão anterior', function () {
+    comEndpoint([
+        'claudinho.api.midias' => ['habilitado' => true, 'destino' => DestinoFake::class],
+    ]);
+    exigeBanco();
+    DestinoFake::$recebidas = [];
+
+    Http::fake(['*' => Http::response('os-bytes-da-foto')]);
+    veFoto('Parede com mancha.');
+
+    mandaAoCanal(anexo())->assertOk();
+
+    expect(DestinoFake::$recebidas)->toHaveCount(1);
+});
