@@ -14,6 +14,7 @@ use Rogga\Claudinho\Ferramentas\GerarGrafico;
 use Rogga\Claudinho\Http\ClienteHttp;
 use Rogga\Claudinho\Http\Controllers\ConversaController;
 use Rogga\Claudinho\Http\Middleware\AutenticaCanal;
+use Rogga\Claudinho\Http\Middleware\InterpretaMidia;
 use Rogga\Claudinho\Livewire\Chat;
 use Rogga\Claudinho\Livewire\Configuracoes;
 use Rogga\Claudinho\View\Components\Grafico;
@@ -103,6 +104,10 @@ class ClaudinhoServiceProvider extends ServiceProvider
                 (array) config('claudinho.api.middleware', ['api']),
                 $throttle !== '' ? ["throttle:{$throttle}"] : [],
                 [AutenticaCanal::class],
+                // Depois do token, e o mais interno de todos: baixar arquivo de um
+                // endereço que veio na requisição e chamar a API de visão é a parte
+                // cara, e não pode acontecer antes de o chamador estar autenticado.
+                config('claudinho.api.midias.habilitado', false) ? [InterpretaMidia::class] : [],
             ))
             ->group(function (): void {
                 Route::post('conversa', [ConversaController::class, 'conversar'])
