@@ -64,6 +64,22 @@ class Claude
         $this->timeout = (int) config('claudinho.timeout');
     }
 
+    /**
+     * Sobrepõe o esforço só nesta instância.
+     *
+     * Existe para as chamadas que não são a conversa: descrever uma imagem não é
+     * raciocínio, e pagar o esforço do chat por ela é latência que quem está
+     * esperando sente. Mexer no config em volta da chamada funcionaria, mas
+     * vazaria para o Claude que a Conversa monta logo depois, na mesma
+     * requisição.
+     */
+    public function comEsforco(string $effort): self
+    {
+        $this->effort = $effort;
+
+        return $this;
+    }
+
     public function configurado(): bool
     {
         return filled($this->apiKey);

@@ -1,5 +1,48 @@
 # Changelog
 
+## v1.7.0
+
+### Adicionado
+
+- **Foto e vídeo no canal externo.** O gateway não manda o arquivo: manda
+  `{"type":"image/jpeg","uri":"https://..."}` no campo `mensagem`, com uma URI assinada que
+  costuma vencer em meia hora. Repassado assim, o modelo recebia um endereço que não sabe
+  abrir e respondia que não entendeu, enquanto o link vencia sem ninguém baixar nada.
+
+  Ligado o `api.midias.habilitado`, o pacote baixa na hora, descobre o tipo pelos bytes,
+  descreve a imagem e troca o JSON pela descrição. A descrição entra como TEXTO de propósito:
+  mandar a imagem junto do histórico custaria os tokens dela em cada volta do loop de
+  ferramenta. Vídeo a API não lê — é entregue igual, e o assistente pede a descrição em texto.
+
+- **Contrato `DestinoDeMidia`.** O pacote não sabe o que a foto significa na aplicação — num
+  sistema de atendimento vira anexo de chamado, num de vistoria é evidência do item. Guardar é
+  decisão de domínio, e o destino ainda pode acrescentar uma frase à anotação ("vai como anexo
+  do chamado que você abrir"). Sem destino configurado a imagem continua sendo descrita: o que
+  se perde é o arquivo, não o entendimento.
+
+- **`Claude::comEsforco()`** sobrepõe o esforço numa instância. A descrição da imagem usa
+  `low`: dizer o que aparece numa foto não é raciocínio, e é o único ponto do fluxo em que
+  quem está conversando espera duas chamadas à API em sequência.
+
+### Sobre segurança
+
+A URI vem DENTRO da mensagem, ou seja, de fora: qualquer um pode digitar
+`{"type":"image/jpeg","uri":"https://169.254.169.254/..."}` no WhatsApp e o gateway repassa
+como texto. Por isso:
+
+- `api.midias.hosts` preenchida é a única barreira e dispensa DNS — é o modo de produção.
+- Vazia, aceita qualquer endereço **público**: rede interna barrada (IP direto ou domínio que
+  resolva para lá) e redirecionamento não seguido, porque host público que responde 302 para
+  `169.254.169.254` anularia a checagem.
+- Teto de tamanho conferido nos bytes baixados, e não pelo `Content-Length`, que é do gateway
+  e pode não vir.
+
+### Compatibilidade
+
+Nada muda para quem já usa o pacote: `api.midias.habilitado` nasce `false`, e com ele desligado
+o middleware não entra na pilha do endpoint. Atualizar da 1.6 não faz o servidor baixar arquivo
+nenhum nem gastar chamada de visão até alguém ligar.
+
 ## v1.6.3
 
 ### Alterado

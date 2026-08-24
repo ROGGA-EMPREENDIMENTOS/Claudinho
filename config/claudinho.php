@@ -191,6 +191,66 @@ return [
         // Requisições por minuto, por IP. '' desliga.
         'throttle' => '30,1',
 
+        // Foto e vídeo que chegam pela conversa. O gateway não manda o arquivo:
+        // manda `{"type":"image/jpeg","uri":"https://..."}` no campo `mensagem`,
+        // com uma URI assinada que costuma vencer em meia hora.
+        //
+        // Desligado por padrão: ligar significa o servidor passar a baixar
+        // arquivo de endereço que vem na mensagem e a pagar uma chamada de visão
+        // por imagem. É decisão de quem instala, não do pacote.
+        'midias' => [
+
+            'habilitado' => false,
+
+            // Classe que implementa Rogga\Claudinho\Contracts\DestinoDeMidia e
+            // decide o que fazer com o arquivo — virar anexo de chamado, evidência
+            // de vistoria, nada. Sem ela a imagem ainda é DESCRITA e a descrição
+            // entra na conversa; o que se perde é o arquivo.
+            //
+            // Class-string e não closure porque closure não sobrevive a
+            // `config:cache`, igual ao resolvedor acima.
+            'destino' => null,
+
+            // Só o que a aplicação sabe receber. Imagem dos quatro primeiros o
+            // modelo também consegue LER; vídeo ele não assiste, e por isso o
+            // assistente pede a descrição em texto.
+            'tipos' => [
+                'image/jpeg',
+                'image/png',
+                'image/webp',
+                'image/gif',
+                'video/mp4',
+                'video/3gpp',
+                'video/quicktime',
+            ],
+
+            // De onde este servidor aceita baixar. A URI vem DENTRO da mensagem,
+            // ou seja, de fora: qualquer um pode digitar o endereço da rede
+            // interna no WhatsApp e o gateway repassa como texto.
+            //
+            // Preenchida, é a única barreira e não há consulta DNS — é o modo de
+            // produção, com o host do gateway. Vazia, aceita qualquer endereço
+            // PÚBLICO: a rede interna segue barrada e redirecionamento não é
+            // seguido, mas é postura de desenvolvimento.
+            'hosts' => [],
+
+            // Teto do arquivo baixado. Vídeo de WhatsApp passa de 10 MB com
+            // frequência.
+            'max_bytes' => 20 * 1024 * 1024,
+
+            // Mídias aproveitadas por mensagem. Cada uma é um download e uma
+            // chamada de visão dentro da requisição que alguém está esperando.
+            'max_por_mensagem' => 3,
+
+            'timeout' => 20,
+
+            // Sobrepõe a instrução da descrição da imagem. O padrão do pacote
+            // serve a qualquer domínio; aqui se diz o que a SUA aplicação quer ver
+            // descrito — o cômodo e o defeito, num sistema de assistência técnica.
+            'instrucao_da_descricao' => null,
+
+        ],
+
         // Silêncio maior que isto começa conversa nova. Histórico de horas atrás
         // confunde o modelo mais do que ajuda, e encarece cada resposta.
         'minutos_inatividade' => 30,

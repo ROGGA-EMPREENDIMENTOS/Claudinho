@@ -31,6 +31,9 @@ consultas do seu sistema — e o pacote garante que o modelo só veja o que o us
 - **Endpoint HTTP** — o mesmo assistente por API, para WhatsApp e outros canais externos,
   com o escopo de permissão do usuário que a aplicação apontar. Ver
   [Endpoint para canais externos](#endpoint-para-canais-externos-whatsapp-e-afins).
+- **Foto e vídeo no canal externo** — o anexo do gateway é baixado, a imagem é descrita pela
+  API de visão e a descrição entra na conversa; o arquivo vai para onde a sua aplicação
+  mandar. Desligado por padrão. Ver [Foto e vídeo](#foto-e-vídeo).
 
 ## Instalação
 
@@ -475,6 +478,71 @@ mais do que ajuda, e encarece cada resposta. Agende a faxina das vencidas:
 ```php
 Schedule::command('claudinho:limpar-conversas')->daily();
 ```
+
+### Foto e vídeo
+
+Desligado por padrão. Ligar significa o servidor passar a baixar arquivo de endereço que vem
+na mensagem e a pagar uma chamada de visão por imagem — é decisão de quem instala.
+
+O gateway não manda o arquivo: manda `{"type":"image/jpeg","uri":"https://..."}` no campo
+`mensagem`, com uma URI assinada que costuma vencer em meia hora. Repassado assim, o modelo
+recebe um endereço que não sabe abrir e responde que não entendeu, enquanto o link vence sem
+ninguém baixar nada.
+
+Ligado, o pacote baixa na hora, descobre o tipo pelos bytes, descreve a imagem e troca o JSON
+pela descrição:
+
+```
+[Foto recebida nesta conversa. O que aparece nela: Canto de parede próximo ao piso, com
+manchas escuras de mofo na quina entre as duas paredes (...)]
+```
+
+A descrição entra como TEXTO, e é de propósito: mandar a imagem em toda requisição junto do
+histórico custaria os tokens dela em cada volta do loop de ferramenta. Descrever uma vez sai
+mais barato e sobrevive ao corte do histórico. Vídeo a API não lê — é entregue igual, e o
+assistente pede a descrição em texto.
+
+```php
+'midias' => [
+    'habilitado' => true,
+    'destino' => App\Suporte\AnexosDoChamado::class,   // opcional
+    'hosts' => ['blipmediastore.blob.core.windows.net'],
+],
+```
+
+**O destino é seu.** O pacote não sabe o que a foto significa na sua aplicação — num sistema
+de atendimento vira anexo de chamado, num de vistoria é evidência do item, num terceiro não é
+nada. Guardar é decisão de domínio:
+
+```php
+use Rogga\Claudinho\Contracts\DestinoDeMidia;
+use Rogga\Claudinho\Midia\MidiaRecebida;
+
+class AnexosDoChamado implements DestinoDeMidia
+{
+    public function guardar(Authenticatable $usuario, MidiaRecebida $midia): ?string
+    {
+        Storage::put("anexos/{$usuario->id}/{$midia->nome}", $midia->conteudo);
+
+        // A frase que só você sabe dizer, acrescentada à anotação.
+        return 'Ele vai como anexo do chamado que você abrir.';
+    }
+}
+```
+
+Sem `destino` a imagem ainda é descrita e a descrição entra na conversa: o modelo passa a
+enxergar a foto mesmo numa aplicação que não tem o que fazer com o arquivo. O que se perde é
+o arquivo.
+
+**`hosts` é a barreira de segurança, e ela importa.** A URI vem DENTRO da mensagem: qualquer
+um pode digitar `{"type":"image/jpeg","uri":"https://169.254.169.254/..."}` no WhatsApp e o
+gateway repassa como texto. Preenchida, a lista é a única barreira e não há consulta DNS —
+é o modo de produção, com o host do gateway. **Vazia, aceita qualquer endereço PÚBLICO**: a
+rede interna segue barrada (IP direto ou domínio que resolva para lá) e redirecionamento não
+é seguido, mas é postura de desenvolvimento.
+
+O resto do bloco — `tipos`, `max_bytes`, `max_por_mensagem`, `timeout`,
+`instrucao_da_descricao` — está comentado no config publicado.
 
 ### Cuidados de integração
 
