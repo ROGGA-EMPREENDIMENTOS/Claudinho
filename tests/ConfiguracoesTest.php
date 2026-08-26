@@ -10,6 +10,7 @@ use Livewire\Livewire;
 use Rogga\Claudinho\Claude;
 use Rogga\Claudinho\Livewire\Chat;
 use Rogga\Claudinho\Livewire\Configuracoes;
+use Rogga\Claudinho\Midia\Recebedor;
 use Rogga\Claudinho\Models\Configuracao;
 
 // Só este arquivo precisa de banco. Migra na mão em vez de usar RefreshDatabase
@@ -443,4 +444,66 @@ it('exige a permissão para mexer no token', function () {
     $componente->call('gerarToken')->assertForbidden();
 
     expect(Configuracao::valor('api_token'))->toBeNull();
+});
+
+it('mostra as palavras de confirmação já normalizadas, que é como elas casam', function () {
+    // "Sim!" no config aprova quem responde "sim": o casamento é sobre o texto
+    // normalizado. Mostrar a palavra crua faria a tela prometer uma pontuação que
+    // não conta, e alguém iria caçar um erro que não existe.
+    config()->set('claudinho.api.palavras_confirmacao', ['Sim!', 'CONFIRMO', 'sim', '  ']);
+
+    expect((new Configuracoes)->regrasDoCanal()['palavras'])->toBe(['sim', 'confirmo']);
+});
+
+it('avisa quando não há palavra alguma que aprove', function () {
+    // Lista vazia não aprova nada, por decisão do Confirmacao. Visto do WhatsApp,
+    // isso parece o assistente ignorando o "sim" — a tela tem de dizer o motivo.
+    config()->set('claudinho.api.palavras_confirmacao', []);
+
+    expect((new Configuracoes)->regrasDoCanal()['palavras'])->toBe([]);
+});
+
+it('informa prazos, ações e instruções do canal como o endpoint vai aplicá-los', function () {
+    config()->set('claudinho.api.acoes', false);
+    config()->set('claudinho.api.minutos_inatividade', 45);
+    config()->set('claudinho.api.minutos_confirmacao', 2);
+    config()->set('claudinho.api.instrucoes', '  Nada de tabela.  ');
+
+    expect((new Configuracoes)->regrasDoCanal())
+        ->toMatchArray([
+            'acoes' => false,
+            'minutos_inatividade' => 45,
+            'minutos_confirmacao' => 2,
+            'instrucoes' => 'Nada de tabela.',
+        ]);
+});
+
+it('mostra os hosts de mídia em minúsculas, como o Recebedor os compara', function () {
+    config()->set('claudinho.api.midias.habilitado', true);
+    config()->set('claudinho.api.midias.hosts', ['Mmg.Whatsapp.NET', ' ', 'cdn.gateway.com']);
+    config()->set('claudinho.api.midias.destino', 'App\\Claudinho\\AnexoDoChamado');
+
+    expect((new Configuracoes)->midiasEmUso())
+        ->toMatchArray([
+            'habilitado' => true,
+            'hosts' => ['mmg.whatsapp.net', 'cdn.gateway.com'],
+            'destino' => 'AnexoDoChamado',
+        ]);
+});
+
+it('cai nos padrões do Recebedor quando o config foi publicado antes da 1.7', function () {
+    // O mergeConfigFrom é raso: quem publicou o config na 1.6 tem o bloco `api`
+    // dele e nenhuma chave `midias`. Sem o padrão, a tela anunciaria "nenhum tipo
+    // aceito" e "0 MB" numa instalação que aceita os sete tipos.
+    config()->set('claudinho.api.midias', ['habilitado' => true, 'destino' => null]);
+
+    expect((new Configuracoes)->midiasEmUso())
+        ->toMatchArray([
+            'tipos' => Recebedor::TIPOS_PADRAO,
+            'hosts' => [],
+            'max_mb' => 20.0,
+            'max_por_mensagem' => 3,
+            'timeout' => 20,
+            'instrucao_propria' => false,
+        ]);
 });

@@ -491,6 +491,170 @@
                         </span>
                     </section>
 
+                    {{-- Só leitura, e sem campo nenhum: o que está aqui é regra de autorização e
+                         de segurança — palavra que aprova, prazo, de onde se aceita baixar
+                         arquivo. Isso muda com revisão e deploy, não com um clique de quem está
+                         atendendo. Mas precisa ser LIDO em tela: é o que responde "por que o 'ok'
+                         dele não confirmou nada?" sem ninguém abrir o arquivo no servidor. --}}
+                    @php($regras = $this->regrasDoCanal())
+                    @php($midias = $this->midiasEmUso())
+
+                    <section x-data="{ aberta: false }" class="border border-gray-200 rounded-md dark:border-gray-700">
+                        <button type="button" x-on:click="aberta = ! aberta" x-bind:aria-expanded="aberta ? 'true' : 'false'"
+                            class="flex items-center justify-between w-full gap-2 px-3 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-500 dark:text-gray-300 dark:hover:bg-gray-800">
+                            <span>
+                                Regras do canal externo
+                                <span class="font-normal text-gray-500 dark:text-gray-400">— definidas no config</span>
+                            </span>
+
+                            <svg class="w-4 h-4 transition shrink-0" x-bind:class="aberta && 'rotate-180'" fill="none"
+                                viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                            </svg>
+                        </button>
+
+                        <div x-show="aberta" style="display: none"
+                            class="flex flex-col gap-3 px-3 pt-2 pb-3 text-xs border-t border-gray-100 dark:border-gray-800">
+
+                            <p class="text-gray-500 dark:text-gray-400">
+                                Vem de <span class="font-mono">config/claudinho.php</span>, bloco
+                                <span class="font-mono">api</span>, e só muda por lá — nada nesta lista é editável em
+                                tela. Vale para as conversas do endpoint; o chat na tela não passa por nenhuma delas.
+                            </p>
+
+                            <div class="flex flex-col gap-1">
+                                <span class="font-medium text-gray-700 dark:text-gray-300">Conversa</span>
+                                <span class="text-gray-500 dark:text-gray-400">
+                                    Silêncio de mais de {{ $regras['minutos_inatividade'] }}
+                                    {{ $regras['minutos_inatividade'] === 1 ? 'minuto' : 'minutos' }} começa conversa
+                                    nova — o histórico anterior deixa de ser enviado ao modelo.
+                                </span>
+                            </div>
+
+                            <div class="flex flex-col gap-1">
+                                <span class="font-medium text-gray-700 dark:text-gray-300">Alterações de dados</span>
+
+                                @if ($regras['acoes'])
+                                    <span class="text-gray-500 dark:text-gray-400">
+                                        Liberadas neste canal, sempre com confirmação por escrito. A pendência vence em
+                                        {{ $regras['minutos_confirmacao'] }}
+                                        {{ $regras['minutos_confirmacao'] === 1 ? 'minuto' : 'minutos' }}.
+                                    </span>
+
+                                    @if ($regras['palavras'] === [])
+                                        {{-- Lista vazia não aprova nada, por decisão do Confirmacao: melhor
+                                             cancelar tudo do que deixar qualquer texto autorizar escrita. Só
+                                             que, visto de fora, isso parece o assistente ignorando o "sim". --}}
+                                        <span class="text-amber-700 dark:text-amber-500">
+                                            Nenhuma palavra de confirmação configurada — toda alteração vai ser
+                                            cancelada, porque não há resposta capaz de aprová-la.
+                                        </span>
+                                    @else
+                                        <span class="flex flex-wrap items-center gap-1 text-gray-500 dark:text-gray-400">
+                                            <span class="mr-0.5">Aprovam:</span>
+
+                                            @foreach ($regras['palavras'] as $palavra)
+                                                <span class="px-1.5 py-0.5 font-mono text-gray-700 rounded bg-gray-100 dark:bg-gray-800 dark:text-gray-300">{{ $palavra }}</span>
+                                            @endforeach
+                                        </span>
+
+                                        <span class="text-gray-500 dark:text-gray-400">
+                                            A palavra tem de vir sozinha: o casamento é exato, sem acento e sem
+                                            pontuação. <span class="font-mono">Sim!</span> aprova;
+                                            <span class="font-mono">sim, pode cancelar</span> não — e qualquer resposta
+                                            que não casa cancela a alteração.
+                                        </span>
+                                    @endif
+                                @else
+                                    <span class="text-gray-500 dark:text-gray-400">
+                                        Desligadas: o canal é somente-leitura. As ferramentas de ação continuam
+                                        registradas e valendo no chat em tela.
+                                    </span>
+                                @endif
+                            </div>
+
+                            <div class="flex flex-col gap-1">
+                                <span class="font-medium text-gray-700 dark:text-gray-300">Instruções deste canal</span>
+
+                                @if ($regras['instrucoes'] === '')
+                                    <span class="text-gray-500 dark:text-gray-400">
+                                        Nenhuma — o assistente responde formatando como no chat em tela, com tabela e
+                                        título, que um aplicativo de mensagens não desenha.
+                                    </span>
+                                @else
+                                    <span class="text-gray-500 dark:text-gray-400">
+                                        Acrescentadas ao fim do system prompt, só nas conversas do endpoint:
+                                    </span>
+
+                                    <p class="p-2 text-gray-700 rounded bg-gray-50 dark:bg-gray-800 dark:text-gray-300">
+                                        {{ $regras['instrucoes'] }}
+                                    </p>
+                                @endif
+                            </div>
+
+                            <div class="flex flex-col gap-1">
+                                <span class="font-medium text-gray-700 dark:text-gray-300">Foto e vídeo</span>
+
+                                @if (! $midias['habilitado'])
+                                    <span class="text-gray-500 dark:text-gray-400">
+                                        Desligados. O que o gateway mandar como
+                                        <span class="font-mono">{"type":"image/jpeg","uri":"…"}</span> chega ao modelo
+                                        como texto, e ele responde que não entendeu. Ligar é em
+                                        <span class="font-mono">api.midias.habilitado</span>: o servidor passa a baixar
+                                        arquivo de endereço que vem na mensagem e a pagar uma chamada de visão por
+                                        imagem.
+                                    </span>
+                                @else
+                                    <span class="text-gray-500 dark:text-gray-400">
+                                        Ligados. Até {{ $midias['max_por_mensagem'] }}
+                                        {{ $midias['max_por_mensagem'] === 1 ? 'mídia' : 'mídias' }} por mensagem,
+                                        {{ $midias['max_mb'] }} MB cada, {{ $midias['timeout'] }}s de download.
+                                        @if ($midias['destino'])
+                                            O arquivo vai para <span class="font-mono">{{ $midias['destino'] }}</span>.
+                                        @else
+                                            Sem destino configurado: a imagem é descrita e a descrição entra na
+                                            conversa, mas o arquivo se perde.
+                                        @endif
+                                        @if ($midias['instrucao_propria'])
+                                            A instrução da descrição é a da aplicação.
+                                        @endif
+                                    </span>
+
+                                    <span class="flex flex-wrap items-center gap-1 text-gray-500 dark:text-gray-400">
+                                        <span class="mr-0.5">Tipos aceitos:</span>
+
+                                        @forelse ($midias['tipos'] as $tipo)
+                                            <span class="px-1.5 py-0.5 font-mono text-gray-700 rounded bg-gray-100 dark:bg-gray-800 dark:text-gray-300">{{ $tipo }}</span>
+                                        @empty
+                                            <span class="text-amber-700 dark:text-amber-500">nenhum — toda mídia é recusada.</span>
+                                        @endforelse
+                                    </span>
+
+                                    {{-- O item de segurança da lista: a URI vem DENTRO da mensagem, então
+                                         qualquer um digita um endereço da rede interna no WhatsApp e o gateway
+                                         repassa como texto. Lista preenchida é a barreira; vazia é postura de
+                                         desenvolvimento, e quem opera precisa saber em qual das duas está. --}}
+                                    @if ($midias['hosts'] === [])
+                                        <span class="text-amber-700 dark:text-amber-500">
+                                            Sem lista de hosts: aceita baixar de qualquer endereço público que chegar
+                                            na mensagem. A rede interna segue barrada e redirecionamento não é
+                                            seguido, mas em produção preencha
+                                            <span class="font-mono">api.midias.hosts</span> com o host do gateway.
+                                        </span>
+                                    @else
+                                        <span class="flex flex-wrap items-center gap-1 text-gray-500 dark:text-gray-400">
+                                            <span class="mr-0.5">Baixa só destes hosts:</span>
+
+                                            @foreach ($midias['hosts'] as $host)
+                                                <span class="px-1.5 py-0.5 font-mono text-gray-700 rounded bg-gray-100 dark:bg-gray-800 dark:text-gray-300">{{ $host }}</span>
+                                            @endforeach
+                                        </span>
+                                    @endif
+                                @endif
+                            </div>
+                        </div>
+                    </section>
+
                     {{-- Documentação embutida em vez de link: mostra a URL real deste ambiente e
                          serve de diagnóstico. Link para arquivo externo não diria o que falta. --}}
                     <section x-data="{ aberta: false }"
@@ -543,8 +707,9 @@
 
                             <p class="text-gray-500 dark:text-gray-400">
                                 Alteração de dados pede confirmação por escrito: o endpoint devolve
-                                <span class="font-mono">aguardando_confirmacao</span> e só a resposta exatamente
-                                <span class="font-mono">SIM</span> aprova. Qualquer outra cancela.
+                                <span class="font-mono">aguardando_confirmacao</span> e só as palavras listadas em
+                                <em>Regras do canal externo</em> aprovam, sozinhas e por casamento exato. Qualquer
+                                outra resposta cancela.
                             </p>
 
                             <p class="text-gray-500 dark:text-gray-400">

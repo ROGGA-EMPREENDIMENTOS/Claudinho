@@ -84,7 +84,7 @@ passa no gate `permissao_admin` (padrão `claudinho_admin`).
 |---|---|
 | **Assistente** | O **contexto** (quem é o assistente nesta aplicação) e o **glossário de negócio**, regra a regra. É o que se mexe toda semana, e por isso abre nela. |
 | **Modelo e chave** | O modelo em uso e a chave da API. Se define uma vez. |
-| **Canais** | Botão flutuante, atendimento pela API, token do chamador e a documentação do endpoint. |
+| **Canais** | Botão flutuante, atendimento pela API, token do chamador, a documentação do endpoint e as **regras do canal** — prazos, palavras de confirmação, instruções e hosts de mídia, em leitura. |
 
 Um aviso fica **fora das abas**, no alto do modal: *nenhuma chave configurada*. É a única
 condição em que o chat está quebrado, e escondê-la atrás de uma aba seria deixar de avisar
@@ -415,6 +415,13 @@ php artisan migrate   # tabela claudinho_conversas
 
 O resto — ligar o atendimento e gerar o token — sai pela engrenagem do chat, sem `.env` e sem
 deploy. Ver [Configurações em tela](#configurações-em-tela).
+
+O que **não** sai por lá — prazo de inatividade, palavras que confirmam uma alteração, prazo da
+confirmação, instruções deste canal e os hosts de onde se aceita baixar mídia — mesmo assim
+aparece na aba *Canais*, em **Regras do canal externo**, só para ler. É regra de autorização e
+de segurança: muda com revisão e deploy, não com um clique de quem está atendendo. Mas quem
+atende precisa poder responder "por que o 'ok' dele não confirmou nada?" sem abrir o arquivo no
+servidor.
 
 > **Se você publicou o `config/claudinho.php` antes desta versão**, ele não tem o bloco `api`.
 > O `mergeConfigFrom` do Laravel é **raso**: acrescentar só `'api' => ['resolvedor' => ...]`

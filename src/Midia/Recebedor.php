@@ -48,8 +48,12 @@ class Recebedor
      * Vale para `tipos` e para todos os demais valores deste arquivo: o segundo
      * argumento de cada config() é o padrão de verdade, não um enfeite. Só
      * `habilitado` e `destino` precisam ser escritos pela aplicação.
+     *
+     * Pública porque a tela de configurações mostra os tipos aceitos e precisa
+     * cair no mesmo padrão — duas listas iguais escritas em dois lugares só
+     * ficam iguais até alguém mexer numa delas.
      */
-    private const TIPOS_PADRAO = [
+    public const TIPOS_PADRAO = [
         'image/jpeg',
         'image/png',
         'image/webp',

@@ -1,5 +1,37 @@
 # Changelog
 
+## v1.7.1
+
+### Adicionado
+
+- **Regras do canal externo em tela.** A aba *Canais* da engrenagem passa a mostrar, em leitura,
+  o que o `config/claudinho.php` decide sobre o endpoint: minutos de inatividade que começam
+  conversa nova, se as ações estão liberadas neste canal, as palavras que confirmam uma
+  alteração e o prazo delas, as instruções acrescentadas ao system prompt, e as mídias — hosts
+  liberados, tipos aceitos, tamanho, quantidade por mensagem e destino.
+
+  Não virou formulário de propósito: palavra que aprova, prazo de confirmação e host de onde se
+  aceita baixar arquivo são regra de autorização e de segurança, e mudam com revisão e deploy,
+  não com um clique de quem está atendendo. Mas quem atende precisava poder responder "por que
+  o 'ok' dele não confirmou nada?" sem abrir o arquivo no servidor — e ninguém enxergava que a
+  lista de hosts vazia deixa o servidor aceitando qualquer endereço público que chegue dentro
+  da mensagem.
+
+  As palavras aparecem **normalizadas**, que é como elas casam: `Sim!` no config vira `sim` na
+  tela, porque é `sim` que a resposta de quem está do outro lado precisa ser. A lista vazia, que
+  não aprova nada e cancela toda alteração, é dita em amarelo — vista do WhatsApp, ela parece o
+  assistente ignorando o "sim".
+
+  Os valores de mídia caem nos mesmos padrões do `Recebedor` quando a chave não existe, pelo
+  mesmo motivo da correção anterior: com o config publicado antes da 1.7, ler sem padrão faria a
+  tela anunciar "nenhum tipo aceito" numa instalação que aceita os sete.
+
+### Corrigido
+
+- A documentação da API dentro da engrenagem afirmava que só `SIM` aprova uma alteração. Quem
+  trocou `palavras_confirmacao` no config lia uma instrução errada na própria tela; agora ela
+  aponta para a lista em uso.
+
 ## v1.7.0
 
 ### Adicionado

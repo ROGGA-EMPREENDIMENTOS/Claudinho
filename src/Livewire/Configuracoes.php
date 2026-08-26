@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Rogga\Claudinho\Confirmacao;
+use Rogga\Claudinho\Midia\Recebedor;
 use Rogga\Claudinho\Models\Configuracao;
 use Rogga\Claudinho\Models\Regra;
 use Throwable;
@@ -547,6 +549,70 @@ class Configuracoes extends Component
             'pronta' => ! in_array(false, array_column($itens, 'ok'), true),
             'url' => url($prefixo.'/conversa'),
             'itens' => $itens,
+        ];
+    }
+
+    /**
+     * O que o config decide sobre o canal externo e esta tela NÃO edita.
+     *
+     * Não vira formulário de propósito: palavra que aprova e prazo de confirmação
+     * são regra de autorização, e regra de autorização muda com revisão e deploy,
+     * não com um clique de quem está atendendo. Mas quem opera precisa LER — é o
+     * que responde "por que o 'ok' dele não confirmou nada?" sem ninguém abrir o
+     * arquivo no servidor.
+     *
+     * @return array{acoes: bool, minutos_inatividade: int, minutos_confirmacao: int, palavras: array<int, string>, instrucoes: string}
+     */
+    public function regrasDoCanal(): array
+    {
+        // Normalizadas, e não como foram escritas: é esta forma que a resposta de
+        // quem está do outro lado tem de casar. Mostrar "Sim!" cru faria a tela
+        // prometer uma pontuação que o casamento não leva em conta.
+        $palavras = array_values(array_unique(array_filter(array_map(
+            fn ($palavra): string => Confirmacao::normalizar((string) $palavra),
+            (array) config('claudinho.api.palavras_confirmacao', ['sim'])
+        ))));
+
+        return [
+            'acoes' => (bool) config('claudinho.api.acoes', true),
+            'minutos_inatividade' => (int) config('claudinho.api.minutos_inatividade', 30),
+            'minutos_confirmacao' => (int) config('claudinho.api.minutos_confirmacao', 5),
+            'palavras' => $palavras,
+            'instrucoes' => trim((string) config('claudinho.api.instrucoes', '')),
+        ];
+    }
+
+    /**
+     * Foto e vídeo do canal externo, exatamente como o Recebedor vai enxergar.
+     *
+     * Os padrões repetidos aqui são os dele de propósito: o mergeConfigFrom é raso,
+     * então quem publicou o config antes da 1.7 não tem a chave `midias` no arquivo
+     * e continua sem ela depois de atualizar. Ler config() sem padrão faria a tela
+     * anunciar "nenhum tipo aceito" numa instalação que aceita os sete.
+     *
+     * @return array{habilitado: bool, destino: string|null, hosts: array<int, string>, tipos: array<int, string>, max_mb: float, max_por_mensagem: int, timeout: int, instrucao_propria: bool}
+     */
+    public function midiasEmUso(): array
+    {
+        $destino = trim((string) config('claudinho.api.midias.destino', ''));
+
+        return [
+            'habilitado' => (bool) config('claudinho.api.midias.habilitado', false),
+            'destino' => $destino === '' ? null : class_basename($destino),
+            // Minúsculas como no Recebedor: host cadastrado com maiúscula casa lá, e
+            // a tela mostrando outra coisa viraria caça a um erro que não existe.
+            'hosts' => array_values(array_filter(array_map(
+                fn ($host): string => mb_strtolower(trim((string) $host)),
+                (array) config('claudinho.api.midias.hosts', [])
+            ))),
+            'tipos' => array_values(array_map(
+                fn ($tipo): string => mb_strtolower(trim((string) $tipo)),
+                (array) config('claudinho.api.midias.tipos', Recebedor::TIPOS_PADRAO)
+            )),
+            'max_mb' => round(((int) config('claudinho.api.midias.max_bytes', 20 * 1024 * 1024)) / 1024 / 1024, 1),
+            'max_por_mensagem' => (int) config('claudinho.api.midias.max_por_mensagem', 3),
+            'timeout' => (int) config('claudinho.api.midias.timeout', 20),
+            'instrucao_propria' => trim((string) config('claudinho.api.midias.instrucao_da_descricao', '')) !== '',
         ];
     }
 
