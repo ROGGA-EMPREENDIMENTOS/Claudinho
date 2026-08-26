@@ -14,6 +14,7 @@ use Rogga\Claudinho\Confirmacao;
 use Rogga\Claudinho\Midia\Recebedor;
 use Rogga\Claudinho\Models\Configuracao;
 use Rogga\Claudinho\Models\Regra;
+use Rogga\Claudinho\Transcricao;
 use Throwable;
 
 /**
@@ -110,6 +111,17 @@ class Configuracoes extends Component
     /** As ferramentas que alteram dados valem no canal externo? */
     public bool $acoes = true;
 
+    /** O áudio que chega pelo canal externo vira texto pela API do Google? */
+    public bool $transcricao = false;
+
+    /**
+     * Só escrita, pelo mesmo motivo da chave do Claude: propriedade pública do
+     * Livewire vai para o HTML e volta em cada requisição, e segredo não pode fazer
+     * esse caminho. Para exibir existe o chaveDeTranscricaoEmUso(), que só devolve
+     * máscara.
+     */
+    public string $chaveDeTranscricaoNova = '';
+
     /**
      * Token recém-gerado, mostrado UMA vez.
      *
@@ -134,6 +146,8 @@ class Configuracoes extends Component
         $this->palavras = (string) Configuracao::valor('api_palavras_confirmacao', '');
         $this->instrucoes = (string) Configuracao::valor('api_instrucoes', '');
         $this->hostsDeMidia = (string) Configuracao::valor('api_midias_hosts', '');
+
+        $this->transcricao = Transcricao::habilitada();
     }
 
     /**
@@ -466,6 +480,10 @@ class Configuracoes extends Component
             'palavras' => ['nullable', 'string', 'max:500'],
             'instrucoes' => ['nullable', 'string', 'max:2000'],
             'hostsDeMidia' => ['nullable', 'string', 'max:1000'],
+            // Sem validar o prefixo AIza: chave restrita por proxy da própria
+            // empresa não tem esse formato, e travar aqui não protegeria nada —
+            // chave errada só aparece na primeira transcrição, como erro do Google.
+            'chaveDeTranscricaoNova' => ['nullable', 'string', 'min:20', 'max:200'],
         ];
 
         // Os minutos só entram na validação quando têm algo escrito. Não é o mesmo
@@ -489,6 +507,7 @@ class Configuracoes extends Component
             'palavras' => 'palavras de confirmação',
             'instrucoes' => 'instruções do canal',
             'hostsDeMidia' => 'hosts de mídia',
+            'chaveDeTranscricaoNova' => 'chave do Google Speech-to-Text',
         ]);
 
         Configuracao::definir('model', $this->modelo);
@@ -514,8 +533,16 @@ class Configuracoes extends Component
         Configuracao::definir('api_palavras_confirmacao', $this->palavras);
         Configuracao::definir('api_midias_hosts', $this->hostsDeMidia);
 
+        Configuracao::definirBooleano('transcricao_habilitada', $this->transcricao);
+
         if (filled($this->chaveNova)) {
             Configuracao::definir('api_key', trim($this->chaveNova));
+        }
+
+        // Igual à do Claude: campo em branco mantém a que está gravada, senão
+        // salvar qualquer outra configuração apagaria a chave sem querer.
+        if (filled($this->chaveDeTranscricaoNova)) {
+            Configuracao::definir('transcricao_chave', trim($this->chaveDeTranscricaoNova));
         }
 
         // Relê em vez de manter o que foi digitado: quem esvaziou o campo precisa ver
@@ -524,6 +551,7 @@ class Configuracoes extends Component
         $this->contexto = $this->contextoEmUso();
 
         $this->chaveNova = '';
+        $this->chaveDeTranscricaoNova = '';
         // O token só aparece na resposta em que foi gerado.
         $this->tokenGerado = '';
 
@@ -564,6 +592,61 @@ class Configuracoes extends Component
         }
 
         return ['origem' => 'ausente', 'dica' => null];
+    }
+
+    /**
+     * Limpar não apaga o registro: grava vazio, e valor vazio cai no env de novo.
+     */
+    public function limparChaveDeTranscricao(): void
+    {
+        $this->autoriza();
+
+        Configuracao::definir('transcricao_chave', null);
+
+        $this->chaveDeTranscricaoNova = '';
+
+        $this->dispatch('claudinho-configuracoes-salvas');
+    }
+
+    /**
+     * De onde a chave do Google em uso está vindo, sem revelar a chave.
+     *
+     * @return array{origem: 'tela'|'env'|'ausente', dica: string|null}
+     */
+    public function chaveDeTranscricaoEmUso(): array
+    {
+        $daTela = Configuracao::valor('transcricao_chave');
+
+        if (filled($daTela)) {
+            return ['origem' => 'tela', 'dica' => $this->mascara($daTela)];
+        }
+
+        $doEnv = config('claudinho.transcricao.chave');
+
+        if (filled($doEnv)) {
+            return ['origem' => 'env', 'dica' => $this->mascara((string) $doEnv)];
+        }
+
+        return ['origem' => 'ausente', 'dica' => null];
+    }
+
+    /**
+     * O que está valendo AGORA na transcrição de áudio.
+     *
+     * `habilitada` é o interruptor e `ativa` é o resultado: ligado sem chave não
+     * transcreve nada, e a tela precisa dizer isso na hora — senão o áudio falha em
+     * silêncio, um a um, e o motivo só aparece no log de quem tiver acesso a ele.
+     *
+     * @return array{habilitada: bool, ativa: bool, idioma: string, gravada_em_tela: bool}
+     */
+    public function transcricaoEmUso(): array
+    {
+        return [
+            'habilitada' => Transcricao::habilitada(),
+            'ativa' => Transcricao::ativa(),
+            'idioma' => Transcricao::idioma(),
+            'gravada_em_tela' => $this->gravadoEmTela('transcricao_habilitada'),
+        ];
     }
 
     /**

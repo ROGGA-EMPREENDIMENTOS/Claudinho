@@ -297,6 +297,47 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Transcrição de áudio (Google Speech-to-Text)
+    |--------------------------------------------------------------------------
+    |
+    | O áudio que chega pelo canal externo. O gateway manda o áudio como manda a
+    | foto — `{"type":"audio/ogg","uri":"https://..."}` no campo `mensagem` —, só
+    | que o Claude não ouve: quem transcreve é a API do Google, e o que entra na
+    | conversa é o texto.
+    |
+    | Desligado por padrão, e ligar é decisão de quem instala: passa a haver uma
+    | chamada paga a um SERVIÇO DE TERCEIRO, fora da Anthropic, com o áudio de
+    | quem está conversando dentro dela.
+    |
+    | Ligar e guardar a chave se faz pela aba "Canais" da engrenagem — estas
+    | chaves são só o padrão para quem prefere ambiente, como no resto do pacote.
+    |
+    */
+
+    'transcricao' => [
+
+        // Padrão do interruptor da tela, cujo valor gravado vence este.
+        'habilitado' => env('GOOGLE_SPEECH_HABILITADO', false),
+
+        // Chave de API do Google Cloud com a Speech-to-Text liberada (as que
+        // começam com `AIza`). É credencial de projeto, não de pessoa: restrinja
+        // por IP e por API no console, porque ela vale para quem a tiver em mãos.
+        //
+        // A tela guarda a chave criptografada com a APP_KEY, igual à do Claude, e
+        // o valor gravado lá vence este.
+        'chave' => env('GOOGLE_SPEECH_API_KEY'),
+
+        // Idioma esperado do áudio (BCP-47). Fica só no arquivo: quem fala com o
+        // assistente é o mesmo público da aplicação, e trocar isso não é decisão
+        // de operação — é de instalação.
+        'idioma' => env('GOOGLE_SPEECH_IDIOMA', 'pt-BR'),
+
+        'timeout' => 30,
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Contexto do sistema
     |--------------------------------------------------------------------------
     |

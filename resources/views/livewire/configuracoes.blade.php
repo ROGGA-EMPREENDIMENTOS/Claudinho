@@ -712,6 +712,94 @@
                         </div>
                     </section>
 
+                    <hr class="border-gray-100 dark:border-gray-800">
+
+                    @php($voz = $this->transcricaoEmUso())
+                    @php($chaveDeVoz = $this->chaveDeTranscricaoEmUso())
+
+                    <section class="flex flex-col gap-3">
+                        <div class="flex flex-col gap-0.5">
+                            <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Transcrição de áudio
+                            </h3>
+
+                            <span class="text-xs text-gray-500 dark:text-gray-400">
+                                O áudio que chega pelo canal externo vira texto pela API do
+                                <strong class="font-medium">Google Speech-to-Text</strong>, e é o texto que entra na
+                                conversa — o Claude lê, mas não ouve. Vale no botão <em>Salvar</em>, no rodapé.
+                            </span>
+                        </div>
+
+                        <label class="flex items-start gap-2.5 cursor-pointer">
+                            <input wire:model="transcricao" type="checkbox"
+                                class="mt-0.5 rounded border-gray-300 text-sky-600 shrink-0 focus:ring-sky-500 dark:bg-gray-800 dark:border-gray-700">
+
+                            <span class="flex flex-col gap-0.5">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">Transcrever áudio recebido</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">
+                                    Ligar manda o áudio de quem está conversando para um serviço de terceiro, fora da
+                                    Anthropic, e cada minuto é cobrado pelo Google. Desligado, o assistente pede que o
+                                    recado venha por escrito.
+                                </span>
+                            </span>
+                        </label>
+
+                        <div class="flex flex-col gap-1.5">
+                            <label for="claudinho-chave-voz" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Chave da API do Google
+                            </label>
+
+                            <input wire:model="chaveDeTranscricaoNova" type="password" id="claudinho-chave-voz"
+                                autocomplete="off"
+                                placeholder="{{ $chaveDeVoz['origem'] === 'ausente' ? 'AIza...' : 'Deixe em branco para manter a atual' }}"
+                                class="w-full font-mono text-base border-gray-300 rounded-md sm:text-sm focus:border-sky-500 focus:ring-sky-500 dark:text-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:placeholder-gray-500">
+
+                            @error('chaveDeTranscricaoNova')
+                                <span class="text-xs text-red-600 dark:text-red-400">{{ $message }}</span>
+                            @enderror
+
+                            <span class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                                @if ($chaveDeVoz['origem'] === 'tela')
+                                    <span>Em uso, definida aqui:
+                                        <span class="font-mono">{{ $chaveDeVoz['dica'] }}</span></span>
+
+                                    <button type="button" wire:click="limparChaveDeTranscricao"
+                                        wire:confirm="Limpar a chave do Google definida em tela? O sistema volta a usar a do .env, se houver."
+                                        class="font-medium underline text-sky-700 underline-offset-2 hover:text-sky-900 dark:text-sky-400 dark:hover:text-sky-300">
+                                        Limpar
+                                    </button>
+                                @elseif ($chaveDeVoz['origem'] === 'env')
+                                    <span>Em uso, vinda do <span class="font-mono">.env</span>:
+                                        <span class="font-mono">{{ $chaveDeVoz['dica'] }}</span>. Preencher acima passa a
+                                        valer no lugar dela.</span>
+                                @else
+                                    <span>Nenhuma chave gravada aqui nem em
+                                        <span class="font-mono">GOOGLE_SPEECH_API_KEY</span>. É credencial de projeto do
+                                        Google Cloud, com a Speech-to-Text liberada — restrinja por IP e por API no
+                                        console.</span>
+                                @endif
+                            </span>
+                        </div>
+
+                        {{-- Ligado sem chave não é "meio ligado": é desligado com aparência de
+                             ligado. Sem esta linha, o áudio falharia em silêncio, um a um, e o
+                             motivo só apareceria no log de quem tivesse acesso a ele. --}}
+                        <span class="text-xs {{ $voz['habilitada'] && ! $voz['ativa'] ? 'text-amber-700 dark:text-amber-500' : 'text-gray-500 dark:text-gray-400' }}">
+                            @if ($voz['habilitada'] && ! $voz['ativa'])
+                                <strong class="font-medium">Ligada, mas sem chave</strong> — nenhum áudio vai ser
+                                transcrito enquanto ela faltar.
+                            @elseif ($voz['ativa'])
+                                Em uso, {{ $voz['gravada_em_tela'] ? 'ligada aqui' : 'ligada pelo config' }}. Idioma
+                                esperado: <span class="font-mono">{{ $voz['idioma'] }}</span>, de
+                                <span class="font-mono">transcricao.idioma</span> — é decisão de instalação, e por isso
+                                não tem campo aqui.
+                            @else
+                                Desligada, {{ $voz['gravada_em_tela'] ? 'aqui' : 'pelo config' }}. A chave pode ficar
+                                gravada mesmo assim: ela só é usada quando o interruptor estiver ligado.
+                            @endif
+                        </span>
+                    </section>
+
                     {{-- Documentação embutida em vez de link: mostra a URL real deste ambiente e
                          serve de diagnóstico. Link para arquivo externo não diria o que falta. --}}
                     <section x-data="{ aberta: false }"

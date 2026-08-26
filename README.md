@@ -84,7 +84,7 @@ passa no gate `permissao_admin` (padrão `claudinho_admin`).
 |---|---|
 | **Assistente** | O **contexto** (quem é o assistente nesta aplicação) e o **glossário de negócio**, regra a regra. É o que se mexe toda semana, e por isso abre nela. |
 | **Modelo e chave** | O modelo em uso e a chave da API. Se define uma vez. |
-| **Canais** | Botão flutuante, atendimento pela API, token do chamador, a documentação do endpoint e as **regras do canal**: prazos, palavras de confirmação, ações, instruções e hosts de mídia. |
+| **Canais** | Botão flutuante, atendimento pela API, token do chamador, a documentação do endpoint, a **transcrição de áudio** e as **regras do canal**: prazos, palavras de confirmação, ações, instruções e hosts de mídia. |
 
 Um aviso fica **fora das abas**, no alto do modal: *nenhuma chave configurada*. É a única
 condição em que o chat está quebrado, e escondê-la atrás de uma aba seria deixar de avisar
@@ -145,6 +145,7 @@ conversa paga o system prompt cheio de novo.
 |---|---|---|
 | **Botão flutuante do chat** | Some com o botão do canto sem tirar o componente do layout. | Não afeta o chat que a aplicação colocou dentro de uma página — quem o pôs ali foi a aplicação, e não cabe a uma tela escondê-lo. |
 | **Atendimento pela API** | Liga o endpoint. Desligado, ele responde 503 e nenhuma conversa externa é atendida. | Não dispensa o **resolvedor de usuário** — esse é uma classe, e por isso continua sendo código. |
+| **Transcrever áudio recebido** | Liga a transcrição pela API do Google Speech-to-Text: o áudio que chega pelo canal vira texto, e é o texto que entra na conversa. | Não funciona sem a **chave do Google**, gravada logo abaixo do interruptor. Ligado sem chave, a tela avisa em vez de deixar o áudio falhar em silêncio. |
 
 A tela também **gera o token** do chamador, guardado criptografado como a chave do Claude. Ou
 seja: ligar a API não exige mexer no `.env`. As chaves `api.habilitado` e `api.token` do
@@ -561,6 +562,53 @@ rede interna segue barrada (IP direto ou domínio que resolva para lá) e redire
 
 O resto do bloco — `tipos`, `max_bytes`, `max_por_mensagem`, `timeout`,
 `instrucao_da_descricao` — está comentado no config publicado.
+
+### Áudio: transcrição pelo Google Speech-to-Text
+
+Desligado por padrão, e ligar é decisão de quem instala — não do pacote. Passa a haver uma
+chamada paga a um **serviço de terceiro, fora da Anthropic**, com o áudio de quem está
+conversando dentro dela.
+
+O áudio chega como a foto chega: `{"type":"audio/ogg","uri":"https://..."}` no campo
+`mensagem`. A diferença é que o Claude **lê, mas não ouve** — quem transcreve é a API do
+Google, e o que entra na conversa é o texto.
+
+Liga-se na aba *Canais* da engrenagem, com dois campos: o interruptor e a chave. No config,
+que é só o padrão para quem prefere ambiente:
+
+```php
+'transcricao' => [
+    'habilitado' => env('GOOGLE_SPEECH_HABILITADO', false),
+    'chave' => env('GOOGLE_SPEECH_API_KEY'),
+    'idioma' => env('GOOGLE_SPEECH_IDIOMA', 'pt-BR'),
+    'timeout' => 30,
+],
+```
+
+A chave é uma **credencial de projeto do Google Cloud** com a Speech-to-Text liberada (as que
+começam com `AIza`), não de pessoa: vale para quem a tiver em mãos, então restrinja por IP e
+por API no console. Gravada em tela, ela vai criptografada com a `APP_KEY`, igual à do Claude,
+e o campo é só de escrita — o que a tela devolve é máscara.
+
+`idioma` fica só no arquivo, de propósito: quem fala com o assistente é o mesmo público da
+aplicação, e trocar isso é decisão de instalação, não de operação.
+
+**Ligado sem chave não é "meio ligado": é desligado com aparência de ligado.** Por isso a tela
+separa as duas coisas e avisa na hora — senão o áudio falharia um a um, em silêncio, e o
+motivo só apareceria no log de quem tivesse acesso a ele. Em código, é a diferença entre
+`Transcricao::habilitada()` (o interruptor) e `Transcricao::ativa()` (interruptor **e** chave):
+
+```php
+use Rogga\Claudinho\Transcricao;
+
+if (Transcricao::ativa()) {
+    // Transcricao::chave() já respeita a precedência tela > config/.env.
+}
+```
+
+Nunca leia `config('claudinho.transcricao.chave')` direto: a chave gravada em tela seria
+ignorada sem ninguém perceber. `Transcricao` existe para ser o único lugar que responde o que
+está valendo agora — o mesmo papel que o `Canal` faz para as regras do canal.
 
 ### Cuidados de integração
 

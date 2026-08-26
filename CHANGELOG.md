@@ -1,5 +1,36 @@
 # Changelog
 
+## v1.8.0
+
+### Adicionado
+
+- **Transcrição de áudio pela API do Google Speech-to-Text**, configurável na aba *Canais* da
+  engrenagem: um interruptor e a chave. O áudio chega pelo canal externo como a foto chega —
+  `{"type":"audio/ogg","uri":"https://..."}` no campo `mensagem` —, só que o Claude lê e não
+  ouve; quem transcreve é o Google, e o que entra na conversa é o texto.
+
+  **Desligado por padrão**, e ligar é decisão de quem instala: passa a haver chamada paga a um
+  serviço de terceiro, fora da Anthropic, com o áudio de quem está conversando dentro dela.
+  Atualizar o pacote não liga isso sozinho.
+
+  A chave vai criptografada com a `APP_KEY`, igual à do Claude, e o campo é só de escrita — o
+  que a tela devolve é máscara. `GOOGLE_SPEECH_HABILITADO` e `GOOGLE_SPEECH_API_KEY` continuam
+  valendo como padrão para quem prefere configurar por ambiente; o gravado em tela vence, e
+  *Limpar* devolve o controle ao `.env`, como no resto do pacote.
+
+  O idioma (`transcricao.idioma`, padrão `pt-BR`) fica só no arquivo: quem fala com o
+  assistente é o mesmo público da aplicação, e trocar isso é decisão de instalação, não de
+  operação.
+
+- **`Rogga\Claudinho\Transcricao`.** O único lugar que responde se a transcrição está valendo
+  agora e com que chave — mesmo papel do `Canal` para as regras do canal. Aqui o motivo é mais
+  forte, porque um dos valores é segredo: `config('claudinho.transcricao.chave')` lido direto
+  ignoraria a chave gravada em tela sem ninguém perceber.
+
+  `habilitada()` é o interruptor e `ativa()` é o resultado. Ligado sem chave não é "meio
+  ligado": é desligado com aparência de ligado, e separar os dois é o que permite à tela avisar
+  em vez de deixar cada áudio falhar em silêncio no log.
+
 ## v1.7.2
 
 ### Adicionado

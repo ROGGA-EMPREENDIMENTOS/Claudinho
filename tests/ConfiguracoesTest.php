@@ -14,6 +14,7 @@ use Rogga\Claudinho\Livewire\Chat;
 use Rogga\Claudinho\Livewire\Configuracoes;
 use Rogga\Claudinho\Midia\Recebedor;
 use Rogga\Claudinho\Models\Configuracao;
+use Rogga\Claudinho\Transcricao;
 
 // Só este arquivo precisa de banco. Migra na mão em vez de usar RefreshDatabase
 // porque a trait roda no setUp, antes do skip abaixo — e o :memory: do testbench
@@ -609,4 +610,93 @@ it('desenha os campos do canal com o que está valendo', function () {
         // parece zero em vez de "usa o config".
         ->toContain('placeholder="30"')
         ->toContain('mmg.whatsapp.net');
+});
+
+it('grava o interruptor e a chave da transcrição, e faz os dois vencerem o config', function () {
+    comoAdmin();
+
+    config()->set('claudinho.transcricao.habilitado', false);
+    config()->set('claudinho.transcricao.chave', 'AIza-do-env');
+
+    Livewire::test(Configuracoes::class)
+        ->set('transcricao', true)
+        ->set('chaveDeTranscricaoNova', 'AIza-da-tela-com-tamanho-suficiente')
+        ->call('salvar')
+        ->assertHasNoErrors();
+
+    expect(Transcricao::habilitada())->toBeTrue()
+        ->and(Transcricao::chave())->toBe('AIza-da-tela-com-tamanho-suficiente')
+        ->and(Transcricao::ativa())->toBeTrue();
+});
+
+it('guarda a chave do Google criptografada, nunca a devolve para a tela', function () {
+    comoAdmin();
+
+    Livewire::test(Configuracoes::class)
+        ->set('chaveDeTranscricaoNova', 'AIza-super-secreta-do-google')
+        ->call('salvar');
+
+    $bruto = (string) DB::table('claudinho_configuracoes')->where('chave', 'transcricao_chave')->value('valor');
+
+    expect($bruto)->not->toContain('AIza-super-secreta-do-google')
+        ->and(Configuracao::valor('transcricao_chave'))->toBe('AIza-super-secreta-do-google');
+
+    // Propriedade pública do Livewire vai para o HTML e volta em cada requisição:
+    // o campo é só de escrita, e o que aparece é máscara.
+    $html = Livewire::test(Configuracoes::class)->set('aba', 'canais')->html();
+
+    expect($html)->not->toContain('AIza-super-secreta-do-google')
+        ->toContain('AIza-sup');
+});
+
+it('mantém a chave do Google ao salvar com o campo em branco', function () {
+    comoAdmin();
+
+    Configuracao::definir('transcricao_chave', 'AIza-ja-gravada-antes-disso');
+
+    Livewire::test(Configuracoes::class)->set('transcricao', true)->call('salvar');
+
+    // Sem isto, salvar qualquer outra configuração apagaria a chave sem querer —
+    // o campo volta em branco em todo carregamento da tela.
+    expect(Transcricao::chave())->toBe('AIza-ja-gravada-antes-disso');
+});
+
+it('devolve a chave do Google ao env quando limpa em tela', function () {
+    comoAdmin();
+
+    config()->set('claudinho.transcricao.chave', 'AIza-do-env');
+    Configuracao::definir('transcricao_chave', 'AIza-da-tela');
+
+    expect(Transcricao::chave())->toBe('AIza-da-tela');
+
+    Livewire::test(Configuracoes::class)->call('limparChaveDeTranscricao');
+
+    expect(Transcricao::chave())->toBe('AIza-do-env');
+});
+
+it('recusa chave curta demais sem gravar nada', function () {
+    comoAdmin();
+
+    Livewire::test(Configuracoes::class)
+        ->set('chaveDeTranscricaoNova', 'AIza')
+        ->call('salvar')
+        ->assertHasErrors('chaveDeTranscricaoNova');
+
+    expect(Configuracao::valor('transcricao_chave'))->toBeNull();
+});
+
+it('avisa na tela quando a transcrição está ligada sem chave', function () {
+    comoAdmin();
+
+    config()->set('claudinho.transcricao.chave', null);
+
+    Livewire::test(Configuracoes::class)->set('transcricao', true)->call('salvar');
+
+    $html = Livewire::test(Configuracoes::class)->set('aba', 'canais')->html();
+
+    // Ligado sem chave falharia áudio por áudio, em silêncio, e o motivo só
+    // apareceria no log de quem tivesse acesso a ele.
+    expect($html)
+        ->toContain('claudinho-chave-voz')
+        ->toContain('Ligada, mas sem chave');
 });
