@@ -8,6 +8,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Rogga\Claudinho\Canal;
 use Rogga\Claudinho\Claude;
 use Rogga\Claudinho\Contracts\DestinoDeMidia;
 use Throwable;
@@ -328,7 +329,7 @@ class Recebedor
     private function enderecoLiberado(string $uri): bool
     {
         $host = mb_strtolower((string) parse_url($uri, PHP_URL_HOST));
-        $hosts = array_map('strtolower', (array) config('claudinho.api.midias.hosts', []));
+        $hosts = Canal::hostsDeMidia();
 
         if ($host === '' || parse_url($uri, PHP_URL_SCHEME) !== 'https') {
             Log::warning('Claudinho: mídia recusada, endereço não é https.', ['host' => $host]);

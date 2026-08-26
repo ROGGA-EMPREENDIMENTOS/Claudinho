@@ -7,6 +7,7 @@ namespace Rogga\Claudinho\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Rogga\Claudinho\Canal;
 use Rogga\Claudinho\Conversa;
 
 /**
@@ -77,9 +78,7 @@ class ConversaExterna extends Model
      */
     public function renovar(): self
     {
-        $minutos = (int) config('claudinho.api.minutos_inatividade', 30);
-
-        $this->expira_em = now()->addMinutes(max(1, $minutos));
+        $this->expira_em = now()->addMinutes(Canal::minutosInatividade());
 
         return $this;
     }

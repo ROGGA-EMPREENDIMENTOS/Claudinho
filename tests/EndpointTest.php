@@ -176,6 +176,9 @@ it('exige do remetente a mesma permissão que abre o chat em tela', function () 
 
 it('atende quando o remetente tem a permissão', function () {
     comEndpoint(['claudinho.permissao' => 'use_assistente']);
+    // O único deste arquivo que chega ao controller, e o controller guarda a
+    // conversa: precisa da tabela, ao contrário dos vizinhos.
+    exigeBanco();
 
     Gate::define('use_assistente', fn (): bool => true);
     fakeStreams(rodadaTexto('São 12 obras ativas.'));

@@ -16,7 +16,19 @@ use Rogga\Claudinho\Models\Configuracao;
 use Rogga\Claudinho\Models\Regra;
 use Rogga\Claudinho\Tests\TestCase;
 
-uses(TestCase::class)->in(__DIR__);
+/**
+ * O beforeEach vai junto do uses() porque hook solto neste arquivo não alcança os
+ * outros: a memória de requisição do Configuracao e do Regra é estática e sobrevive
+ * ao fim do teste. Limpar só nos testes de banco não basta mais — com o Canal,
+ * código sem banco nenhum (o Confirmacao, por exemplo) passou a perguntar o que
+ * está gravado em tela, e herdaria a resposta do teste anterior.
+ */
+uses(TestCase::class)
+    ->beforeEach(function () {
+        Configuracao::esquecer();
+        Regra::esquecer();
+    })
+    ->in(__DIR__);
 
 /**
  * O cliente HTTP do pacote, que não é o facade Http: é nele que o fake e as asserções

@@ -7,7 +7,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
+use Rogga\Claudinho\Canal;
 use Rogga\Claudinho\Claude;
+use Rogga\Claudinho\Confirmacao;
 use Rogga\Claudinho\Livewire\Chat;
 use Rogga\Claudinho\Livewire\Configuracoes;
 use Rogga\Claudinho\Midia\Recebedor;
@@ -506,4 +508,105 @@ it('cai nos padrões do Recebedor quando o config foi publicado antes da 1.7', f
             'timeout' => 20,
             'instrucao_propria' => false,
         ]);
+});
+
+it('grava as regras do canal em tela, e elas passam a vencer o config', function () {
+    comoAdmin();
+
+    config()->set('claudinho.api.acoes', true);
+    config()->set('claudinho.api.minutos_inatividade', 30);
+    config()->set('claudinho.api.minutos_confirmacao', 5);
+    config()->set('claudinho.api.palavras_confirmacao', ['sim']);
+    config()->set('claudinho.api.instrucoes', 'Do arquivo.');
+    config()->set('claudinho.api.midias.hosts', ['do-arquivo.exemplo.com']);
+
+    Livewire::test(Configuracoes::class)
+        ->set('acoes', false)
+        ->set('minutosInatividade', '45')
+        ->set('minutosConfirmacao', '2')
+        ->set('palavras', "pode ir\nautorizo")
+        ->set('instrucoes', 'Da tela.')
+        // A URI assinada inteira, como ela aparece no log e no painel do gateway.
+        ->set('hostsDeMidia', 'https://MMG.whatsapp.net/v/t62.7118-24/123?ccb=11-4')
+        ->call('salvar')
+        ->assertHasNoErrors();
+
+    expect(Canal::acoes())->toBeFalse()
+        ->and(Canal::minutosInatividade())->toBe(45)
+        ->and(Canal::minutosConfirmacao())->toBe(2)
+        ->and(Canal::palavras())->toBe(['pode ir', 'autorizo'])
+        ->and(Canal::instrucoes())->toBe('Da tela.')
+        // Guardado só o host, que é o que o Recebedor compara.
+        ->and(Canal::hostsDeMidia())->toBe(['mmg.whatsapp.net']);
+});
+
+it('devolve a regra do config quando o campo do canal é esvaziado', function () {
+    comoAdmin();
+
+    config()->set('claudinho.api.minutos_inatividade', 30);
+    config()->set('claudinho.api.palavras_confirmacao', ['sim']);
+
+    $componente = Livewire::test(Configuracoes::class)
+        ->set('minutosInatividade', '45')
+        ->set('palavras', 'autorizo')
+        ->call('salvar');
+
+    expect(Canal::minutosInatividade())->toBe(45);
+
+    // Esvaziar não é gravar zero nem lista vazia: é devolver o controle ao arquivo,
+    // igual ao Limpar da chave da API.
+    $componente->set('minutosInatividade', '')
+        ->set('palavras', '')
+        ->call('salvar')
+        ->assertHasNoErrors();
+
+    expect(Canal::minutosInatividade())->toBe(30)
+        ->and(Canal::palavras())->toBe(['sim']);
+});
+
+it('recusa prazo fora da faixa sem gravar nada', function () {
+    comoAdmin();
+
+    config()->set('claudinho.api.minutos_confirmacao', 5);
+
+    Livewire::test(Configuracoes::class)
+        ->set('minutosConfirmacao', '0')
+        ->call('salvar')
+        ->assertHasErrors('minutosConfirmacao');
+
+    expect(Canal::minutosConfirmacao())->toBe(5);
+});
+
+it('faz a palavra gravada em tela aprovar a confirmação do canal', function () {
+    comoAdmin();
+
+    config()->set('claudinho.api.palavras_confirmacao', ['sim']);
+
+    Livewire::test(Configuracoes::class)->set('palavras', 'pode ir')->call('salvar');
+
+    // Quem decide a aprovação é o Confirmacao, e ele passou a perguntar ao Canal.
+    // Sem isso, a tela gravaria uma palavra que ninguém consulta — e o "sim" do
+    // config seguiria aprovando por trás.
+    expect(Confirmacao::aprovada('Pode ir!'))->toBeTrue()
+        ->and(Confirmacao::aprovada('sim'))->toBeFalse();
+});
+
+it('desenha os campos do canal com o que está valendo', function () {
+    comoAdmin();
+
+    config()->set('claudinho.api.minutos_inatividade', 30);
+    Configuracao::definir('api_midias_hosts', 'mmg.whatsapp.net');
+
+    $html = Livewire::test(Configuracoes::class)->set('aba', 'canais')->html();
+
+    expect($html)
+        ->toContain('claudinho-inatividade')
+        ->toContain('claudinho-confirmacao')
+        ->toContain('claudinho-palavras')
+        ->toContain('claudinho-instrucoes')
+        ->toContain('claudinho-hosts')
+        // O valor do arquivo aparece como placeholder do campo vazio: sem ele, vazio
+        // parece zero em vez de "usa o config".
+        ->toContain('placeholder="30"')
+        ->toContain('mmg.whatsapp.net');
 });

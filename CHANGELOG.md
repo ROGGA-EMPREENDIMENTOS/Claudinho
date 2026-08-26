@@ -1,5 +1,46 @@
 # Changelog
 
+## v1.7.2
+
+### Adicionado
+
+- **As regras do canal externo viraram campos.** O que a 1.7.1 mostrou em leitura na aba
+  *Canais* agora se edita ali: minutos de inatividade que começam conversa nova, se as ações
+  valem neste canal, as palavras que confirmam uma alteração e o prazo delas, as instruções do
+  canal e os hosts de onde se aceita baixar mídia.
+
+  O motivo é o intervalo entre descobrir e corrigir. Todas elas se descobrem erradas em
+  produção, olhando conversa de verdade: o gateway trocou de domínio e a foto passou a ser
+  recusada, o pessoal responde "ok" e não "sim", a resposta veio comprida demais para o
+  WhatsApp. Nenhuma delas justifica um deploy, e enquanto ele não sai o canal fica meio quebrado.
+
+  **Campo vazio volta ao config**, como na chave da API e no contexto. É o que permite desfazer
+  uma edição sem precisar lembrar o valor do arquivo, e o que mantém o `config/claudinho.php`
+  como a resposta padrão de quem versiona a configuração no git.
+
+  Os hosts aceitam a URI assinada inteira, com esquema, caminho e porta — é o que está no log e
+  no painel do gateway. Guardar `https://mmg.whatsapp.net/v/t62...` faria a comparação falhar
+  sem explicação, já que só o host é comparado; então o campo devolve o domínio sozinho.
+
+  Continuam só no arquivo, porque não são decisão de quem opera: o resolvedor de usuário e o
+  destino da mídia (são classes), os tipos aceitos e os tetos de download.
+
+- **`Rogga\Claudinho\Canal`.** Um lugar só para responder "o que está valendo agora" em cada
+  uma dessas regras. Perguntam quatro pontos diferentes — o controller, o registro da conversa,
+  o Recebedor e a tela —, e espalhada por `config()` em quatro arquivos a precedência entre
+  arquivo e tela precisaria ser lembrada em cada um deles.
+
+### Corrigido
+
+- Dois testes do endpoint falhavam em ambiente com banco: chamavam `comEndpoint()` no corpo do
+  teste, que recria a aplicação, e o `:memory:` do sqlite morre com a conexão anterior — a
+  tabela migrada no `beforeEach` já não existia. Só apareciam onde o driver está instalado; nos
+  demais eles pulavam, e um teste que pula não protege nada.
+
+- A memória de requisição do `Configuracao` é estática e atravessava os testes. Não incomodava
+  enquanto só o chat a lia; com o `Canal`, código sem banco nenhum passou a perguntar o que está
+  gravado em tela, e herdava a resposta do teste anterior.
+
 ## v1.7.1
 
 ### Adicionado

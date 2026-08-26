@@ -231,6 +231,9 @@ it('não deixa a pergunta seguinte passar por cima da pendência', function () {
 
 it('não oferece nem executa ação quando o canal é somente-leitura', function () {
     comEndpoint(['claudinho.api.acoes' => false]);
+    // comEndpoint() recria a aplicação, e o :memory: do sqlite morre com a conexão
+    // anterior: sem migrar de novo, a tabela do beforeEach não existe mais.
+    exigeBanco();
 
     registro([new CancelarPedido]);
     fakeStreams(

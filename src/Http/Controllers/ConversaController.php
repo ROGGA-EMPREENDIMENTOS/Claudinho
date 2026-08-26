@@ -8,6 +8,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Rogga\Claudinho\Canal;
 use Rogga\Claudinho\Confirmacao;
 use Rogga\Claudinho\Contracts\ResolvedorDeUsuario;
 use Rogga\Claudinho\Conversa;
@@ -152,7 +153,7 @@ class ConversaController
         $pausada = $motor->pausada();
 
         $registro->confirmar_ate = $pausada
-            ? now()->addMinutes(max(1, (int) config('claudinho.api.minutos_confirmacao', 5)))
+            ? now()->addMinutes(Canal::minutosConfirmacao())
             : null;
 
         $registro->guardar($motor);
@@ -206,11 +207,11 @@ class ConversaController
     {
         $motor = $registro->motor();
 
-        if (! config('claudinho.api.acoes', true)) {
+        if (! Canal::acoes()) {
             $motor->semAcoes();
         }
 
-        return $motor->comInstrucoes((string) config('claudinho.api.instrucoes', ''));
+        return $motor->comInstrucoes(Canal::instrucoes());
     }
 
     /**

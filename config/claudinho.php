@@ -237,6 +237,10 @@ return [
             // produção, com o host do gateway. Vazia, aceita qualquer endereço
             // PÚBLICO: a rede interna segue barrada e redirecionamento não é
             // seguido, mas é postura de desenvolvimento.
+            //
+            // Também se cadastra pela aba "Canais" da engrenagem, e o que estiver
+            // gravado lá vence esta lista. O resto deste bloco `midias`, não: tipo
+            // aceito, teto e destino são decisão de código, e o destino é uma classe.
             'hosts' => [],
 
             // Teto do arquivo baixado. Vídeo de WhatsApp passa de 10 MB com
@@ -258,6 +262,10 @@ return [
 
         // Silêncio maior que isto começa conversa nova. Histórico de horas atrás
         // confunde o modelo mais do que ajuda, e encarece cada resposta.
+        //
+        // Daqui para baixo, até o fim do bloco, tudo é editável na aba "Canais" da
+        // engrenagem, e o valor gravado lá vence este — como no modelo e no
+        // contexto. Esvaziar o campo em tela devolve o valor daqui.
         'minutos_inatividade' => 30,
 
         // Ferramentas que ALTERAM dados neste canal. Deixe false para o canal

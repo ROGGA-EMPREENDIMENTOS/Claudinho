@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Rogga\Claudinho\Canal;
 use Rogga\Claudinho\Confirmacao;
 use Rogga\Claudinho\Midia\Recebedor;
 use Rogga\Claudinho\Models\Configuracao;
@@ -90,6 +91,26 @@ class Configuracoes extends Component
     public bool $api = false;
 
     /**
+     * As regras do canal externo. Vazio significa "usa o config" — igual à chave e
+     * ao contexto —, e por isso guardam o que está GRAVADO em tela, não o valor em
+     * uso: prefilhados com o valor do arquivo, o primeiro Salvar congelaria no banco
+     * o que o config diz hoje, e um deploy que mudasse o arquivo deixaria de ter
+     * efeito sem ninguém entender por quê.
+     */
+    public string $minutosInatividade = '';
+
+    public string $minutosConfirmacao = '';
+
+    public string $palavras = '';
+
+    public string $instrucoes = '';
+
+    public string $hostsDeMidia = '';
+
+    /** As ferramentas que alteram dados valem no canal externo? */
+    public bool $acoes = true;
+
+    /**
      * Token recém-gerado, mostrado UMA vez.
      *
      * Ao contrário da chave do Claude, este segredo precisa ser lido: quem opera
@@ -106,6 +127,13 @@ class Configuracoes extends Component
         $this->flutuante = Configuracao::booleano('flutuante_ativo', (bool) config('claudinho.flutuante.ativo', true));
         $this->api = Configuracao::booleano('api_ativa', (bool) config('claudinho.api.habilitado', false));
         $this->contexto = $this->contextoEmUso();
+
+        $this->acoes = Canal::acoes();
+        $this->minutosInatividade = (string) Configuracao::valor('api_minutos_inatividade', '');
+        $this->minutosConfirmacao = (string) Configuracao::valor('api_minutos_confirmacao', '');
+        $this->palavras = (string) Configuracao::valor('api_palavras_confirmacao', '');
+        $this->instrucoes = (string) Configuracao::valor('api_instrucoes', '');
+        $this->hostsDeMidia = (string) Configuracao::valor('api_midias_hosts', '');
     }
 
     /**
@@ -427,7 +455,7 @@ class Configuracoes extends Component
         // mount() roda uma vez; cada ação precisa revalidar por conta própria.
         $this->autoriza();
 
-        $this->validate([
+        $regras = [
             'modelo' => ['required', 'string', 'max:100'],
             // Sem validar o prefixo sk-ant-: quem usa gateway ou proxy tem chave
             // de outro formato e não deve ficar travado aqui.
@@ -435,16 +463,56 @@ class Configuracoes extends Component
             // Nullable de propósito: esvaziar é como se volta ao texto do config,
             // igual ao Limpar da chave.
             'contexto' => ['nullable', 'string', 'max:4000'],
-        ], attributes: [
+            'palavras' => ['nullable', 'string', 'max:500'],
+            'instrucoes' => ['nullable', 'string', 'max:2000'],
+            'hostsDeMidia' => ['nullable', 'string', 'max:1000'],
+        ];
+
+        // Os minutos só entram na validação quando têm algo escrito. Não é o mesmo
+        // que 'nullable': campo de número vazio chega como string vazia, que não é
+        // null, e a regra 'integer' reprovaria justamente quem está limpando o campo
+        // para voltar ao config.
+        foreach (['minutosInatividade' => 1440, 'minutosConfirmacao' => 1440] as $campo => $teto) {
+            $this->{$campo} = trim($this->{$campo});
+
+            if ($this->{$campo} !== '') {
+                $regras[$campo] = ['integer', 'min:1', 'max:'.$teto];
+            }
+        }
+
+        $this->validate($regras, attributes: [
             'modelo' => 'modelo',
             'chaveNova' => 'chave da API',
             'contexto' => 'contexto',
+            'minutosInatividade' => 'tempo de inatividade',
+            'minutosConfirmacao' => 'prazo da confirmação',
+            'palavras' => 'palavras de confirmação',
+            'instrucoes' => 'instruções do canal',
+            'hostsDeMidia' => 'hosts de mídia',
         ]);
 
         Configuracao::definir('model', $this->modelo);
         Configuracao::definirBooleano('flutuante_ativo', $this->flutuante);
         Configuracao::definirBooleano('api_ativa', $this->api);
         Configuracao::definir('contexto', trim($this->contexto));
+
+        Configuracao::definirBooleano('api_acoes', $this->acoes);
+        Configuracao::definir('api_minutos_inatividade', $this->minutosInatividade);
+        Configuracao::definir('api_minutos_confirmacao', $this->minutosConfirmacao);
+        Configuracao::definir('api_instrucoes', trim($this->instrucoes));
+
+        // Guardado já separado por linha, e o host só com o host: o que fica gravado
+        // é exatamente o que o Confirmacao e o Recebedor vão comparar depois. Quem
+        // colou a URI assinada inteira vê o campo voltar com o domínio sozinho, em
+        // vez de descobrir pelo log que a mídia foi recusada.
+        $this->palavras = Canal::texto(Canal::lista($this->palavras));
+        $this->hostsDeMidia = Canal::texto(array_map(
+            fn (string $host): string => Canal::host($host),
+            Canal::lista($this->hostsDeMidia)
+        ));
+
+        Configuracao::definir('api_palavras_confirmacao', $this->palavras);
+        Configuracao::definir('api_midias_hosts', $this->hostsDeMidia);
 
         if (filled($this->chaveNova)) {
             Configuracao::definir('api_key', trim($this->chaveNova));
@@ -553,13 +621,9 @@ class Configuracoes extends Component
     }
 
     /**
-     * O que o config decide sobre o canal externo e esta tela NÃO edita.
-     *
-     * Não vira formulário de propósito: palavra que aprova e prazo de confirmação
-     * são regra de autorização, e regra de autorização muda com revisão e deploy,
-     * não com um clique de quem está atendendo. Mas quem opera precisa LER — é o
-     * que responde "por que o 'ok' dele não confirmou nada?" sem ninguém abrir o
-     * arquivo no servidor.
+     * O que está valendo AGORA nas conversas do canal externo, já com o gravado em
+     * tela vencendo o config — é o que a tela mostra abaixo de cada campo, para a
+     * edição não virar um chute sobre qual dos dois lados ganhou.
      *
      * @return array{acoes: bool, minutos_inatividade: int, minutos_confirmacao: int, palavras: array<int, string>, instrucoes: string}
      */
@@ -569,17 +633,60 @@ class Configuracoes extends Component
         // quem está do outro lado tem de casar. Mostrar "Sim!" cru faria a tela
         // prometer uma pontuação que o casamento não leva em conta.
         $palavras = array_values(array_unique(array_filter(array_map(
-            fn ($palavra): string => Confirmacao::normalizar((string) $palavra),
-            (array) config('claudinho.api.palavras_confirmacao', ['sim'])
+            fn (string $palavra): string => Confirmacao::normalizar($palavra),
+            Canal::palavras()
         ))));
 
         return [
-            'acoes' => (bool) config('claudinho.api.acoes', true),
-            'minutos_inatividade' => (int) config('claudinho.api.minutos_inatividade', 30),
-            'minutos_confirmacao' => (int) config('claudinho.api.minutos_confirmacao', 5),
+            'acoes' => Canal::acoes(),
+            'minutos_inatividade' => Canal::minutosInatividade(),
+            'minutos_confirmacao' => Canal::minutosConfirmacao(),
             'palavras' => $palavras,
-            'instrucoes' => trim((string) config('claudinho.api.instrucoes', '')),
+            'instrucoes' => Canal::instrucoes(),
         ];
+    }
+
+    /**
+     * O que o ARQUIVO diz, em texto pronto para o campo.
+     *
+     * Vira placeholder: campo vazio usa o config, e mostrar ali o valor que vai
+     * valer evita a dúvida de sempre — "vazio é zero, ou é o padrão?".
+     *
+     * @return array{minutos_inatividade: string, minutos_confirmacao: string, palavras: string, instrucoes: string, hosts: string}
+     */
+    public function padroesDoCanal(): array
+    {
+        $hosts = array_filter(array_map(
+            fn ($host): string => Canal::host((string) $host),
+            (array) config('claudinho.api.midias.hosts', [])
+        ));
+
+        $palavras = array_filter(array_map(
+            fn ($palavra): string => trim((string) $palavra),
+            (array) config('claudinho.api.palavras_confirmacao', ['sim'])
+        ));
+
+        return [
+            'minutos_inatividade' => (string) (int) config('claudinho.api.minutos_inatividade', 30),
+            'minutos_confirmacao' => (string) (int) config('claudinho.api.minutos_confirmacao', 5),
+            'palavras' => implode(', ', $palavras),
+            'instrucoes' => trim((string) config('claudinho.api.instrucoes', '')),
+            // Sem hosts no arquivo o placeholder vira exemplo: não há valor de
+            // arquivo para anunciar, e o campo em branco precisa dizer o formato.
+            'hosts' => $hosts === [] ? 'mmg.whatsapp.net' : implode("\n", $hosts),
+        ];
+    }
+
+    /**
+     * O valor em uso foi digitado aqui, ou ainda vem do arquivo?
+     *
+     * A tela diz isso campo a campo pelo mesmo motivo da chave e do token: sem a
+     * frase, esvaziar um campo parece apagar a regra, quando na verdade devolve o
+     * valor do config.
+     */
+    public function gravadoEmTela(string $chave): bool
+    {
+        return filled(Configuracao::valor($chave));
     }
 
     /**
@@ -599,12 +706,9 @@ class Configuracoes extends Component
         return [
             'habilitado' => (bool) config('claudinho.api.midias.habilitado', false),
             'destino' => $destino === '' ? null : class_basename($destino),
-            // Minúsculas como no Recebedor: host cadastrado com maiúscula casa lá, e
-            // a tela mostrando outra coisa viraria caça a um erro que não existe.
-            'hosts' => array_values(array_filter(array_map(
-                fn ($host): string => mb_strtolower(trim((string) $host)),
-                (array) config('claudinho.api.midias.hosts', [])
-            ))),
+            // Do Canal, e não do config: os hosts podem ter sido cadastrados em tela,
+            // e é lá que a normalização acontece — a mesma que o Recebedor compara.
+            'hosts' => Canal::hostsDeMidia(),
             'tipos' => array_values(array_map(
                 fn ($tipo): string => mb_strtolower(trim((string) $tipo)),
                 (array) config('claudinho.api.midias.tipos', Recebedor::TIPOS_PADRAO)

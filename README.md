@@ -84,7 +84,7 @@ passa no gate `permissao_admin` (padrão `claudinho_admin`).
 |---|---|
 | **Assistente** | O **contexto** (quem é o assistente nesta aplicação) e o **glossário de negócio**, regra a regra. É o que se mexe toda semana, e por isso abre nela. |
 | **Modelo e chave** | O modelo em uso e a chave da API. Se define uma vez. |
-| **Canais** | Botão flutuante, atendimento pela API, token do chamador, a documentação do endpoint e as **regras do canal** — prazos, palavras de confirmação, instruções e hosts de mídia, em leitura. |
+| **Canais** | Botão flutuante, atendimento pela API, token do chamador, a documentação do endpoint e as **regras do canal**: prazos, palavras de confirmação, ações, instruções e hosts de mídia. |
 
 Um aviso fica **fora das abas**, no alto do modal: *nenhuma chave configurada*. É a única
 condição em que o chat está quebrado, e escondê-la atrás de uma aba seria deixar de avisar
@@ -416,12 +416,14 @@ php artisan migrate   # tabela claudinho_conversas
 O resto — ligar o atendimento e gerar o token — sai pela engrenagem do chat, sem `.env` e sem
 deploy. Ver [Configurações em tela](#configurações-em-tela).
 
-O que **não** sai por lá — prazo de inatividade, palavras que confirmam uma alteração, prazo da
-confirmação, instruções deste canal e os hosts de onde se aceita baixar mídia — mesmo assim
-aparece na aba *Canais*, em **Regras do canal externo**, só para ler. É regra de autorização e
-de segurança: muda com revisão e deploy, não com um clique de quem está atendendo. Mas quem
-atende precisa poder responder "por que o 'ok' dele não confirmou nada?" sem abrir o arquivo no
-servidor.
+As **regras do canal** também: prazo de inatividade, se as ações valem por aqui, as palavras que
+confirmam uma alteração e o prazo delas, as instruções deste canal e os hosts de onde se aceita
+baixar mídia. Ficam na mesma aba, em *Regras do canal externo*, e o que for gravado ali vence o
+arquivo — **campo vazio volta ao config**, como na chave da API e no contexto. É o que permite
+responder "por que o 'ok' dele não confirmou nada?" e corrigir na hora, sem deploy.
+
+Continuam só no arquivo, porque não são decisão de quem opera: o resolvedor de usuário e o
+destino da mídia (são classes), os tipos de mídia aceitos e os tetos de download.
 
 > **Se você publicou o `config/claudinho.php` antes desta versão**, ele não tem o bloco `api`.
 > O `mergeConfigFrom` do Laravel é **raso**: acrescentar só `'api' => ['resolvedor' => ...]`
@@ -462,21 +464,24 @@ Três regras conservadoras, e as três são deliberadas:
 1. **Só aprovação exata aprova.** `sim` aprova; `sim, pode cancelar` não. Casar por conteúdo
    faria `não, não confirmo` conter `confirmo` e autorizar o oposto do que a pessoa escreveu.
    A resposta diz literalmente o que digitar, então a exigência é justa. A lista está em
-   `api.palavras_confirmacao`.
+   `api.palavras_confirmacao`, e a aba *Canais* da engrenagem grava por cima.
 2. **Qualquer outra coisa cancela**, em vez de deixar pendente. Pendência viva esperaria um
    `sim` que pode chegar em outro assunto, meia hora depois.
-3. **Prazo próprio**, mais curto que o da conversa (`api.minutos_confirmacao`, padrão 5). E
+3. **Prazo próprio**, mais curto que o da conversa (`api.minutos_confirmacao`, padrão 5, também
+   editável em tela). E
    mais de uma alteração pendente na mesma rodada cancela todas: uma frase de texto não
    distingue "sim" para qual delas.
 
 Para deixar o canal **somente-leitura** sem desregistrar as ações (que continuam valendo na
-tela), `'acoes' => false`. Aí a ferramenta de escrita nem é declarada ao modelo, e é recusada
-também na execução, caso ele insista no nome.
+tela), `'acoes' => false` — ou o interruptor *Alterações de dados neste canal*, na engrenagem.
+Aí a ferramenta de escrita nem é declarada ao modelo, e é recusada também na execução, caso ele
+insista no nome.
 
 ### Formatação e continuidade
 
 `api.instrucoes` entra no fim do system prompt só neste canal, e por padrão desfaz a regra de
-tabela markdown — que o chat renderiza bem e o WhatsApp não.
+tabela markdown — que o chat renderiza bem e o WhatsApp não. Editável em tela, que é onde se
+ajusta o tom depois de ler as primeiras conversas de verdade.
 
 A conversa é contínua por `canal` + `identificador` e recomeça após
 `api.minutos_inatividade` (padrão 30) de silêncio: histórico de horas atrás confunde o modelo
@@ -516,6 +521,12 @@ assistente pede a descrição em texto.
     'hosts' => ['blipmediastore.blob.core.windows.net'],
 ],
 ```
+
+Os **hosts** também se cadastram na aba *Canais* da engrenagem, e o que estiver gravado lá vence
+esta lista — o gateway troca de domínio sem avisar, e quem descobre é quem está atendendo, pelo
+log de mídia recusada. Pode colar a URI assinada inteira: fica só o host, que é o que o pacote
+compara. O resto do bloco não sai do arquivo: ligar a funcionalidade, o destino e os tipos são
+decisão de código.
 
 **O destino é seu.** O pacote não sabe o que a foto significa na sua aplicação — num sistema
 de atendimento vira anexo de chamado, num de vistoria é evidência do item, num terceiro não é

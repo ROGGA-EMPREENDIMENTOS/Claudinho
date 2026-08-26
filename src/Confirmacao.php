@@ -24,7 +24,7 @@ class Confirmacao
      */
     public static function aprovada(string $mensagem, ?array $palavras = null): bool
     {
-        $palavras = $palavras ?? (array) config('claudinho.api.palavras_confirmacao', ['sim']);
+        $palavras = $palavras ?? Canal::palavras();
 
         $aceitas = array_filter(array_map(
             fn ($palavra): string => self::normalizar((string) $palavra),
