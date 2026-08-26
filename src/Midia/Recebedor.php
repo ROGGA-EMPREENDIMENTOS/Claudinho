@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 use Rogga\Claudinho\Canal;
 use Rogga\Claudinho\Claude;
 use Rogga\Claudinho\Contracts\DestinoDeMidia;
+use Rogga\Claudinho\Transcricao;
 use Throwable;
 
 /**
@@ -28,6 +29,11 @@ use Throwable;
  *
  * Vídeo a API não lê. Ele é entregue ao destino igual, e o assistente pede a
  * descrição em texto.
+ *
+ * Áudio o modelo também não ouve — quem transcreve é a API do Google (ver
+ * Midia\Transcritor), e o que entra na conversa é o texto do que foi dito. É o
+ * mesmo princípio da foto: converter uma vez, na entrada, para o resto do fluxo
+ * lidar só com texto.
  *
  * Nada aqui derruba a conversa: toda falha vira anotação explicando o que houve,
  * porque quem está do outro lado precisa de resposta, não de silêncio.
@@ -64,6 +70,38 @@ class Recebedor
         'video/quicktime',
     ];
 
+    /**
+     * Os áudios que a API do Google transcreve, e que por isso este canal aceita
+     * quando a transcrição está ligada.
+     *
+     * Separado do TIPOS_PADRAO de propósito: aquela lista é o que a APLICAÇÃO
+     * escolhe receber de foto e vídeo, e foi escrita por quem instalou o pacote
+     * antes de áudio existir nele. Ligar a transcrição é dizer "quero áudio" —
+     * exigir que a lista fosse editada também deixaria o interruptor sem efeito
+     * nenhum em quem já tem o config publicado, e o mergeConfigFrom é raso demais
+     * para acrescentar nada lá.
+     *
+     * AAC e M4A ficam de fora porque a API do Google não os decodifica: aceitá-los
+     * seria baixar o arquivo para recusá-lo depois.
+     *
+     * Quem manda no que a API entende é o Transcritor, e esta lista precisa
+     * acompanhá-lo. Se as duas se separarem, o áudio chega até lá e volta com o
+     * motivo `formato` — que é a rede de proteção, não o caminho normal.
+     */
+    public const TIPOS_DE_AUDIO = [
+        'audio/ogg',
+        'audio/opus',
+        'audio/mpeg',
+        'audio/mp3',
+        'audio/amr',
+        'audio/amr-wb',
+        'audio/3gpp',
+        'audio/wav',
+        'audio/x-wav',
+        'audio/flac',
+        'audio/webm',
+    ];
+
     /** Acima disto a imagem é reduzida antes de subir: 1568px é o lado que o modelo aproveita. */
     private const BYTES_PARA_REDUZIR = 1_000_000;
 
@@ -75,10 +113,27 @@ class Recebedor
      */
     public function receber(Authenticatable $usuario, string $tipo, string $uri, ?string $legenda = null): string
     {
-        $tipo = mb_strtolower(trim($tipo));
+        // Sem os parâmetros: o WhatsApp manda `audio/ogg; codecs=opus`, e comparado
+        // inteiro ele não casa com lista nenhuma — o áudio era recusado como "tipo
+        // não aceito" mesmo com tudo ligado.
+        $tipo = trim(mb_strtolower(explode(';', trim($tipo))[0]));
+        $ehAudio = str_starts_with($tipo, 'audio/');
         $ehVideo = str_starts_with($tipo, 'video/');
-        $arquivo = $ehVideo ? 'um vídeo' : 'uma foto';
-        $ele = $ehVideo ? 'ele' : 'ela';
+        $arquivo = match (true) {
+            $ehAudio => 'um áudio',
+            $ehVideo => 'um vídeo',
+            default => 'uma foto',
+        };
+        $ele = $ehAudio || $ehVideo ? 'ele' : 'ela';
+
+        // Áudio com a transcrição desligada não é "tipo não aceito": é o assistente
+        // que não escuta. A diferença muda o que a pessoa faz em seguida — mandar o
+        // recado por escrito, em vez de reenviar o mesmo áudio achando que o envio
+        // falhou.
+        if ($ehAudio && ! Transcricao::habilitada()) {
+            return '[Chegou um áudio nesta conversa, e eu não escuto áudio. Peça que o recado venha '
+                .'por escrito.]';
+        }
 
         if (! \in_array($tipo, $this->aceitos(), true)) {
             // O tipo vem da mensagem, e vai para dentro do prompt: cortado,
@@ -105,24 +160,40 @@ class Recebedor
 
         // Do download em diante manda o arquivo, não o que o gateway disse dele.
         $tipo = $this->tipoReal($conteudo, $tipo);
+        $ehAudio = str_starts_with($tipo, 'audio/');
+        $ehVideo = str_starts_with($tipo, 'video/');
+
+        // A transcrição vem ANTES de entregar ao destino: assim a aplicação recebe o
+        // áudio já com o texto do que foi dito nele, e não precisa transcrever de
+        // novo para guardar os dois juntos.
+        $transcricao = $ehAudio
+            ? (new Transcritor)->transcrever($tipo, $conteudo)
+            : ['texto' => null, 'motivo' => 'ok'];
 
         $midia = new MidiaRecebida(
             tipo: $tipo,
             conteudo: $conteudo,
             nome: $this->nome($tipo),
-            descricao: $ehVideo ? null : $this->descrever($tipo, $conteudo),
+            descricao: $ehVideo || $ehAudio ? null : $this->descrever($tipo, $conteudo),
             legenda: $legenda,
+            transcricao: $transcricao['texto'],
         );
 
-        return $this->anotacao($midia, $this->entregar($usuario, $midia));
+        return $this->anotacao($midia, $this->entregar($usuario, $midia), $transcricao['motivo']);
     }
 
     /**
      * A anotação que o modelo lê, com a frase que o destino quis acrescentar.
+     *
+     * @param  'ok'|'longo'|'formato'|'vazio'|'falha'  $motivo  Por que o áudio não virou texto
      */
-    private function anotacao(MidiaRecebida $midia, ?string $doDestino): string
+    private function anotacao(MidiaRecebida $midia, ?string $doDestino, string $motivo = 'ok'): string
     {
         $sufixo = filled($doDestino) ? ' '.trim((string) $doDestino) : '';
+
+        if ($midia->ehAudio()) {
+            return $this->anotacaoDoAudio($midia, $sufixo, $motivo);
+        }
 
         if ($midia->ehVideo()) {
             return '[Vídeo recebido nesta conversa. Não consigo assistir a vídeo: peça a descrição '
@@ -133,6 +204,42 @@ class Recebedor
             ? '[Foto recebida nesta conversa. Não consegui enxergá-la: peça a descrição em texto do '
                 ."que aparece nela.{$sufixo}]"
             : "[Foto recebida nesta conversa. O que aparece nela: {$midia->descricao}{$sufixo}]";
+    }
+
+    /**
+     * O que dizer sobre um áudio, e é o motivo que decide.
+     *
+     * Cada um deles pede uma reação diferente de quem está do outro lado, e é o
+     * modelo quem vai conduzir isso: reenviar resolve `falha`, não resolve `longo`
+     * nem `formato`, e em `vazio` o que falta é repetir falando mais perto. Um
+     * texto único para todos mandaria a pessoa tentar de novo à toa na maioria dos
+     * casos — o mesmo cuidado que a foto já toma entre "endereço bloqueado" e
+     * "download falhou".
+     *
+     * @param  'ok'|'longo'|'formato'|'vazio'|'falha'  $motivo
+     */
+    private function anotacaoDoAudio(MidiaRecebida $midia, string $sufixo, string $motivo): string
+    {
+        if (filled($midia->transcricao)) {
+            // Entre aspas e anunciado como transcrição, não como fala da pessoa: o
+            // reconhecimento erra, e o modelo precisa saber que aquilo é uma
+            // transcrição para poder confirmar o que ficou ambíguo.
+            return '[Áudio recebido nesta conversa. A transcrição do que foi dito nele: "'
+                .Str::limit((string) $midia->transcricao, 1500).'". Trate isso como a mensagem de quem '
+                .'enviou, e confirme com ela o que a transcrição deixou dúbio.'.$sufixo.']';
+        }
+
+        return match ($motivo) {
+            'longo' => '[Chegou um áudio nesta conversa, mas ele passa de um minuto e eu só consigo '
+                .'ouvir até aí. NÃO peça o reenvio do mesmo áudio — vai dar no mesmo. Peça um áudio '
+                .'mais curto, ou o recado por escrito.'.$sufixo.']',
+            'formato' => '[Chegou um áudio nesta conversa num formato que não consigo ouvir. NÃO peça '
+                .'o reenvio — vai dar no mesmo. Peça o recado por escrito.'.$sufixo.']',
+            'vazio' => '[Chegou um áudio nesta conversa, mas não deu para entender nada do que foi '
+                .'dito. Peça que repita falando mais perto, ou que mande por escrito.'.$sufixo.']',
+            default => '[Chegou um áudio nesta conversa, mas não consegui ouvi-lo. Peça o reenvio, ou '
+                .'o recado por escrito.'.$sufixo.']',
+        };
     }
 
     /**
@@ -463,15 +570,39 @@ class Recebedor
             'video/mp4' => 'mp4',
             'video/3gpp' => '3gp',
             'video/quicktime' => 'mov',
+            'audio/ogg', 'audio/opus' => 'ogg',
+            'audio/mpeg', 'audio/mp3' => 'mp3',
+            'audio/amr', 'audio/amr-wb' => 'amr',
+            'audio/3gpp' => '3ga',
+            'audio/wav', 'audio/x-wav' => 'wav',
+            'audio/flac' => 'flac',
+            'audio/webm' => 'weba',
             default => 'bin',
         };
     }
 
     /**
+     * O que este canal aceita AGORA, que é o cruzamento de dois interruptores
+     * independentes.
+     *
+     * Foto e vídeo saem da lista da aplicação, e só quando `midias.habilitado` está
+     * ligado. Áudio não passa por essa lista: entra com a transcrição ligada e sai
+     * com ela desligada, porque é o que o interruptor quer dizer — e porque exigir
+     * que a lista fosse editada deixaria o interruptor sem efeito em quem publicou
+     * o config antes de áudio existir no pacote.
+     *
      * @return list<string>
      */
     private function aceitos(): array
     {
-        return array_map('strtolower', (array) config('claudinho.api.midias.tipos', self::TIPOS_PADRAO));
+        $tipos = config('claudinho.api.midias.habilitado', false)
+            ? array_map('strtolower', (array) config('claudinho.api.midias.tipos', self::TIPOS_PADRAO))
+            : [];
+
+        if (Transcricao::habilitada()) {
+            $tipos = array_merge($tipos, self::TIPOS_DE_AUDIO);
+        }
+
+        return array_values(array_unique($tipos));
     }
 }

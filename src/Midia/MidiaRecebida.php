@@ -21,6 +21,9 @@ final readonly class MidiaRecebida
      * @param  string|null  $descricao  O que o modelo enxergou. null em vídeo, em
      *                                  formato que a API não lê e quando a visão falhou
      * @param  string|null  $legenda  O texto que veio escrito junto do anexo
+     * @param  string|null  $transcricao  O que foi dito no áudio, pela API do Google.
+     *                                    null fora de áudio, com a transcrição desligada
+     *                                    e quando ela não entendeu nada
      */
     public function __construct(
         public string $tipo,
@@ -28,11 +31,17 @@ final readonly class MidiaRecebida
         public string $nome,
         public ?string $descricao = null,
         public ?string $legenda = null,
+        public ?string $transcricao = null,
     ) {}
 
     public function ehVideo(): bool
     {
         return str_starts_with($this->tipo, 'video/');
+    }
+
+    public function ehAudio(): bool
+    {
+        return str_starts_with($this->tipo, 'audio/');
     }
 
     public function bytes(): int

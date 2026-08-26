@@ -11,22 +11,29 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Rogga\Claudinho\Contracts\ResolvedorDeUsuario;
 use Rogga\Claudinho\Midia\Recebedor;
+use Rogga\Claudinho\Transcricao;
 
 /**
  * Troca o JSON de mídia do gateway pelo que ele quer dizer.
  *
- * Foto e vídeo chegam no mesmo campo `mensagem` das perguntas, como o JSON do
- * anexo — `{"type":"image/jpeg","uri":"https://..."}`. Repassado assim, o modelo
+ * Foto, vídeo e áudio chegam no mesmo campo `mensagem` das perguntas, como o JSON
+ * do anexo — `{"type":"image/jpeg","uri":"https://..."}`. Repassado assim, o modelo
  * recebe um endereço que não sabe abrir e responde que não entendeu, enquanto o
  * link assinado vence sem ninguém baixar nada.
  *
- * Aqui a mídia é recebida (ver Midia\Recebedor) e o JSON vira a anotação que
- * descreve a foto. A legenda que veio escrita junto continua sendo a mensagem de
- * quem enviou — ela vem no mesmo JSON, em `text`.
+ * Aqui a mídia é recebida (ver Midia\Recebedor) e o JSON vira a anotação: a
+ * descrição da foto, ou a transcrição do áudio. A legenda que veio escrita junto
+ * continua sendo a mensagem de quem enviou — ela vem no mesmo JSON, em `text`.
  *
  * É o mais interno da pilha do canal: roda depois do throttle e do token, porque
- * baixar arquivo e chamar a API de visão é a parte cara da requisição e não pode
- * acontecer antes de o chamador estar autenticado.
+ * baixar arquivo e chamar a API de visão ou de transcrição é a parte cara da
+ * requisição e não pode acontecer antes de o chamador estar autenticado.
+ *
+ * Está sempre na pilha, e é ele quem decide se tem o que fazer. O interruptor da
+ * transcrição mora no BANCO, e o registro da rota acontece no boot de toda
+ * requisição da aplicação — ler o banco ali sairia caro justamente nas requisições
+ * que nunca falam com o Claudinho. Com tudo desligado, a requisição sai daqui
+ * intacta.
  */
 final class InterpretaMidia
 {
@@ -34,6 +41,13 @@ final class InterpretaMidia
 
     public function handle(Request $request, Closure $next): mixed
     {
+        // Antes de tudo, inclusive do comoTexto(): sem nada ligado não há mídia que
+        // este middleware saiba aproveitar, e reescrever a mensagem para deixá-la
+        // igual seria trabalho por nada em cada requisição do canal.
+        if (! config('claudinho.api.midias.habilitado', false) && ! Transcricao::habilitada()) {
+            return $next($request);
+        }
+
         $mensagem = $this->comoTexto($request);
 
         if ($mensagem === null || ! preg_match('/[\'"]uri[\'"]/', $mensagem)) {

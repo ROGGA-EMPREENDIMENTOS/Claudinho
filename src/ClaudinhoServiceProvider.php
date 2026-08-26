@@ -105,9 +105,18 @@ class ClaudinhoServiceProvider extends ServiceProvider
                 $throttle !== '' ? ["throttle:{$throttle}"] : [],
                 [AutenticaCanal::class],
                 // Depois do token, e o mais interno de todos: baixar arquivo de um
-                // endereço que veio na requisição e chamar a API de visão é a parte
-                // cara, e não pode acontecer antes de o chamador estar autenticado.
-                config('claudinho.api.midias.habilitado', false) ? [InterpretaMidia::class] : [],
+                // endereço que veio na requisição e chamar a API de visão ou de
+                // transcrição é a parte cara, e não pode acontecer antes de o
+                // chamador estar autenticado.
+                //
+                // Registrado SEMPRE, e quem liga ou desliga é ele mesmo — igual ao
+                // AutenticaCanal logo acima. Decidir aqui exigiria ler o banco no
+                // boot de toda requisição da aplicação, inclusive nas que nunca
+                // falam com o Claudinho, e é o banco que guarda o interruptor da
+                // transcrição. Com tudo desligado ele devolve a requisição intacta
+                // na primeira linha, que é exatamente o que acontecia quando ele
+                // não era registrado.
+                [InterpretaMidia::class],
             ))
             ->group(function (): void {
                 Route::post('conversa', [ConversaController::class, 'conversar'])

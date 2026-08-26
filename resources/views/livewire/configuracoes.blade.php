@@ -726,7 +726,8 @@
                             <span class="text-xs text-gray-500 dark:text-gray-400">
                                 O áudio que chega pelo canal externo vira texto pela API do
                                 <strong class="font-medium">Google Speech-to-Text</strong>, e é o texto que entra na
-                                conversa — o Claude lê, mas não ouve. Vale no botão <em>Salvar</em>, no rodapé.
+                                conversa — o Claude lê, mas não ouve. Não depende de foto e vídeo: são dois
+                                interruptores independentes. Vale no botão <em>Salvar</em>, no rodapé.
                             </span>
                         </div>
 
@@ -738,8 +739,8 @@
                                 <span class="text-sm text-gray-700 dark:text-gray-300">Transcrever áudio recebido</span>
                                 <span class="text-xs text-gray-500 dark:text-gray-400">
                                     Ligar manda o áudio de quem está conversando para um serviço de terceiro, fora da
-                                    Anthropic, e cada minuto é cobrado pelo Google. Desligado, o assistente pede que o
-                                    recado venha por escrito.
+                                    Anthropic, e cada minuto é cobrado pelo Google. Desligado, o assistente responde
+                                    que não escuta áudio e pede o recado por escrito — sem baixar o arquivo.
                                 </span>
                             </span>
                         </label>
@@ -797,6 +798,18 @@
                                 Desligada, {{ $voz['gravada_em_tela'] ? 'aqui' : 'pelo config' }}. A chave pode ficar
                                 gravada mesmo assim: ela só é usada quando o interruptor estiver ligado.
                             @endif
+                        </span>
+
+                        {{-- O teto de um minuto não é escolha nossa: é o do reconhecimento
+                             SÍNCRONO da API, e o assíncrono exigiria o arquivo num bucket do
+                             Cloud Storage — ou seja, obrigaria a aplicação a ter um. Quem opera
+                             precisa saber disso antes de investigar "por que o áudio comprido
+                             não funciona". --}}
+                        <span class="text-xs text-gray-500 dark:text-gray-400">
+                            Até <strong class="font-medium">um minuto</strong> por áudio: acima disso o assistente
+                            avisa e pede um mais curto, em vez de mandar reenviar o que seria recusado de novo.
+                            Aceita gravação de voz do WhatsApp (Opus), MP3, AMR, WAV e FLAC — os hosts liberados são
+                            os mesmos do campo acima.
                         </span>
                     </section>
 

@@ -1,5 +1,53 @@
 # Changelog
 
+## v1.9.0
+
+### Adicionado
+
+- **A transcrição saiu do papel: o áudio é mesmo mandado à API do Google e volta como texto.**
+  A 1.8.0 entregou a configuração; faltava quem chamasse. O `Midia\Transcritor` faz a chamada,
+  e o `Recebedor` troca o JSON do gateway pela transcrição — como já fazia com a descrição da
+  foto.
+
+  Usa o `speech:recognize` SÍNCRONO, e não o `longrunningrecognize`: quem está do outro lado
+  está esperando a resposta chegar no aplicativo de mensagens, e o assíncrono exigiria o
+  arquivo num bucket do Cloud Storage — ou seja, obrigaria a aplicação a ter um. O preço é o
+  teto de um minuto por áudio, que é o recado de WhatsApp típico.
+
+  A codificação e a taxa vão calculadas do próprio arquivo (cabeçalho OpusHead, quadro do MP3),
+  e não chutadas: errar a taxa não degrada a transcrição, faz a API recusar o áudio inteiro. O
+  tipo passa a ser comparado sem os parâmetros, porque o WhatsApp manda `audio/ogg; codecs=opus`
+  e comparado inteiro ele não casava com lista nenhuma.
+
+  Cada falha vira uma resposta diferente, e a diferença é o que a pessoa faz em seguida:
+  áudio acima de um minuto e formato que a API não lê dizem explicitamente para **não** reenviar;
+  áudio incompreensível pede que repita; falha de chamada pede o reenvio. É o mesmo cuidado que
+  a foto já tomava entre "endereço bloqueado" e "download falhou".
+
+  A anotação anuncia o texto como TRANSCRIÇÃO, e não como fala de quem enviou: o reconhecimento
+  erra, e o modelo precisa saber disso para confirmar o que ficou dúbio em vez de agir sobre o
+  palpite. O `DestinoDeMidia` da aplicação recebe o áudio já com o texto em
+  `$midia->transcricao`, para não haver uma segunda transcrição só para guardar os dois juntos.
+
+  A chave viaja na query string, que é como a API do Google aceita chave de projeto — e a
+  mensagem de erro do cliente HTTP traz a URL inteira. Ela é apagada antes de qualquer registro:
+  sem isso o log da aplicação passaria a guardar a credencial em texto puro a cada falha.
+
+### Mudado
+
+- **O interruptor da transcrição é independente do de foto e vídeo.** Quem só quer transcrever
+  recado de voz não precisa ligar `api.midias.habilitado`, e o áudio não sai da lista
+  `api.midias.tipos` — ela foi escrita por quem instalou o pacote antes de áudio existir nele, e
+  o `mergeConfigFrom` é raso demais para acrescentar nada lá. Exigir a edição daquela lista
+  deixaria o interruptor sem efeito nenhum em quem já tem o config publicado.
+
+- **O `InterpretaMidia` passou a ser registrado sempre**, e é ele quem decide se tem o que
+  fazer — igual ao `AutenticaCanal`, que já funcionava assim. O interruptor da transcrição mora
+  no BANCO, e o registro da rota acontece no boot de toda requisição da aplicação: ler o banco
+  ali sairia caro justamente nas requisições que nunca falam com o Claudinho. Com os dois
+  interruptores desligados a requisição sai dele intacta, que é exatamente o que acontecia
+  quando ele não era registrado.
+
 ## v1.8.0
 
 ### Adicionado

@@ -215,6 +215,12 @@ return [
             // modelo também consegue LER; vídeo ele não assiste, e por isso o
             // assistente pede a descrição em texto.
             //
+            // Áudio NÃO sai desta lista: ele entra com o interruptor da
+            // transcrição, no bloco `transcricao` mais abaixo. Ligá-lo já é dizer
+            // "quero áudio", e exigir a edição desta lista também deixaria o
+            // interruptor sem efeito em quem publicou o config antes de áudio
+            // existir no pacote.
+            //
             // Esta lista e as chaves abaixo têm o mesmo padrão dentro do pacote:
             // quem já tinha o config publicado antes da 1.7 não precisa copiá-las,
             // só acrescentar `habilitado` e `destino`. O mergeConfigFrom é raso e
@@ -308,6 +314,14 @@ return [
     | Desligado por padrão, e ligar é decisão de quem instala: passa a haver uma
     | chamada paga a um SERVIÇO DE TERCEIRO, fora da Anthropic, com o áudio de
     | quem está conversando dentro dela.
+    |
+    | Ligado, o áudio passa a ser aceito no canal sem depender de `api.midias`:
+    | são dois interruptores independentes, e quem só quer transcrever recado de
+    | voz não precisa ligar o download de imagem para isso.
+    |
+    | O reconhecimento é o SÍNCRONO da API, que vai até um minuto de áudio — o
+    | recado de WhatsApp típico. Acima disso a resposta diz isso a quem enviou, em
+    | vez de mandar reenviar o que vai ser recusado de novo.
     |
     | Ligar e guardar a chave se faz pela aba "Canais" da engrenagem — estas
     | chaves são só o padrão para quem prefere ambiente, como no resto do pacote.

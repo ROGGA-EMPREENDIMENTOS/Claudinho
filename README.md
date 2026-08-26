@@ -34,6 +34,10 @@ consultas do seu sistema — e o pacote garante que o modelo só veja o que o us
 - **Foto e vídeo no canal externo** — o anexo do gateway é baixado, a imagem é descrita pela
   API de visão e a descrição entra na conversa; o arquivo vai para onde a sua aplicação
   mandar. Desligado por padrão. Ver [Foto e vídeo](#foto-e-vídeo).
+- **Áudio transcrito no canal externo** — o recado de voz é transcrito pela API do Google
+  Speech-to-Text e o texto entra na conversa, com a chave guardada criptografada como a do
+  Claude. Desligado por padrão. Ver
+  [Áudio: transcrição pelo Google Speech-to-Text](#áudio-transcrição-pelo-google-speech-to-text).
 
 ## Instalação
 
@@ -145,7 +149,7 @@ conversa paga o system prompt cheio de novo.
 |---|---|---|
 | **Botão flutuante do chat** | Some com o botão do canto sem tirar o componente do layout. | Não afeta o chat que a aplicação colocou dentro de uma página — quem o pôs ali foi a aplicação, e não cabe a uma tela escondê-lo. |
 | **Atendimento pela API** | Liga o endpoint. Desligado, ele responde 503 e nenhuma conversa externa é atendida. | Não dispensa o **resolvedor de usuário** — esse é uma classe, e por isso continua sendo código. |
-| **Transcrever áudio recebido** | Liga a transcrição pela API do Google Speech-to-Text: o áudio que chega pelo canal vira texto, e é o texto que entra na conversa. | Não funciona sem a **chave do Google**, gravada logo abaixo do interruptor. Ligado sem chave, a tela avisa em vez de deixar o áudio falhar em silêncio. |
+| **Transcrever áudio recebido** | Liga a transcrição pela API do Google Speech-to-Text: o áudio que chega pelo canal vira texto, e é o texto que entra na conversa. Independe do interruptor de foto e vídeo. | Não funciona sem a **chave do Google**, gravada logo abaixo dele. Ligado sem chave, a tela avisa em vez de deixar o áudio falhar em silêncio. |
 
 A tela também **gera o token** do chamador, guardado criptografado como a chave do Claude. Ou
 seja: ligar a API não exige mexer no `.env`. As chaves `api.habilitado` e `api.token` do
@@ -571,7 +575,16 @@ conversando dentro dela.
 
 O áudio chega como a foto chega: `{"type":"audio/ogg","uri":"https://..."}` no campo
 `mensagem`. A diferença é que o Claude **lê, mas não ouve** — quem transcreve é a API do
-Google, e o que entra na conversa é o texto.
+Google, e é o texto que entra na conversa:
+
+```
+[Áudio recebido nesta conversa. A transcrição do que foi dito nele: "preciso remarcar a
+vistoria de amanhã". Trate isso como a mensagem de quem enviou, e confirme com ela o que a
+transcrição deixou dúbio.]
+```
+
+Anunciado como transcrição, e não como fala: o reconhecimento erra, e o modelo precisa saber
+disso para confirmar o que ficou ambíguo em vez de agir sobre o palpite.
 
 Liga-se na aba *Canais* da engrenagem, com dois campos: o interruptor e a chave. No config,
 que é só o padrão para quem prefere ambiente:
@@ -588,15 +601,40 @@ que é só o padrão para quem prefere ambiente:
 A chave é uma **credencial de projeto do Google Cloud** com a Speech-to-Text liberada (as que
 começam com `AIza`), não de pessoa: vale para quem a tiver em mãos, então restrinja por IP e
 por API no console. Gravada em tela, ela vai criptografada com a `APP_KEY`, igual à do Claude,
-e o campo é só de escrita — o que a tela devolve é máscara.
+e o campo é só de escrita — o que a tela devolve é máscara. Ela viaja na query string, que é
+como a API do Google aceita chave de projeto, e por isso o pacote a apaga das mensagens de
+erro antes de registrá-las: sem isso o log guardaria a credencial em texto puro a cada falha.
 
 `idioma` fica só no arquivo, de propósito: quem fala com o assistente é o mesmo público da
 aplicação, e trocar isso é decisão de instalação, não de operação.
 
-**Ligado sem chave não é "meio ligado": é desligado com aparência de ligado.** Por isso a tela
-separa as duas coisas e avisa na hora — senão o áudio falharia um a um, em silêncio, e o
-motivo só apareceria no log de quem tivesse acesso a ele. Em código, é a diferença entre
-`Transcricao::habilitada()` (o interruptor) e `Transcricao::ativa()` (interruptor **e** chave):
+**Este interruptor é independente do de foto e vídeo.** Quem só quer transcrever recado de voz
+não precisa ligar `api.midias.habilitado`, e o áudio não sai da lista `api.midias.tipos` —
+entra com a transcrição ligada. Exigir a edição daquela lista deixaria o interruptor sem
+efeito em quem publicou o config antes de áudio existir no pacote.
+
+**Até um minuto por áudio.** É o teto do reconhecimento síncrono da API; o assíncrono exigiria
+o arquivo num bucket do Cloud Storage, ou seja, obrigaria a aplicação a ter um — e quem está
+do outro lado está esperando a resposta chegar no aplicativo de mensagens. Formatos aceitos:
+Opus (a gravação de voz do WhatsApp), MP3, AMR, WAV, FLAC e WebM. AAC e M4A ficam de fora
+porque a API do Google não os decodifica — aceitá-los seria baixar o arquivo para recusá-lo
+depois.
+
+Cada falha vira uma resposta diferente, e a diferença é o que a pessoa faz em seguida:
+
+| O que houve | O que o assistente diz |
+|---|---|
+| Transcrição desligada | Que não escuta áudio e pede o recado por escrito — **sem baixar o arquivo**. |
+| Áudio acima de um minuto | Que só ouve até um minuto, e pede um mais curto. Diz explicitamente para **não** reenviar. |
+| Formato que a API não lê | Pede o recado por escrito, sem pedir reenvio. |
+| Nada compreensível no áudio | Pede que repita falando mais perto. |
+| A chamada falhou | Pede o reenvio — aqui, sim, tentar de novo pode resolver. |
+
+O áudio chega ao `DestinoDeMidia` da aplicação **já com o texto**, em `$midia->transcricao`,
+para não haver uma segunda transcrição só para guardar os dois lado a lado.
+
+Em código, `Transcricao::habilitada()` é o interruptor e `Transcricao::ativa()` é o resultado —
+ligado sem chave não é "meio ligado", é desligado com aparência de ligado:
 
 ```php
 use Rogga\Claudinho\Transcricao;

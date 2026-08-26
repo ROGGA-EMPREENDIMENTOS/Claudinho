@@ -31,6 +31,22 @@ uses(TestCase::class)
     ->in(__DIR__);
 
 /**
+ * Um Ogg Opus só com o cabeçalho, que é tudo que o Transcritor lê.
+ *
+ * O OpusHead vem logo depois do cabeçalho da página: assinatura (8), versão (1),
+ * canais (1), pre-skip (2) e a taxa de entrada em quatro bytes little-endian.
+ *
+ * Aqui e não num arquivo de teste porque dois deles precisam dela — o do
+ * Transcritor e o da mídia —, e função declarada num arquivo de teste só passa a
+ * existir depois que ele carrega.
+ */
+function opus(int $taxa = 16000): string
+{
+    return "OggS\x00\x02".str_repeat("\x00", 20)."\x01\x13"
+        .'OpusHead'."\x01\x01\x38\x01".pack('V', $taxa)."\x00\x00\x00";
+}
+
+/**
  * O cliente HTTP do pacote, que não é o facade Http: é nele que o fake e as asserções
  * precisam cair, porque é ele que o Claude usa (ver ClienteHttp).
  *

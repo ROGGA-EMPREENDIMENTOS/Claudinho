@@ -300,3 +300,104 @@ it('funciona com o config publicado de uma versão anterior', function () {
 
     expect(DestinoFake::$recebidas)->toHaveCount(1);
 });
+
+/**
+ * O gateway entrega o áudio, e o Google entrega o que foi dito nele — nesta
+ * ordem, num fake só: chamar Http::fake() duas vezes soma os stubs e o primeiro
+ * vence, e aí a chamada ao Google receberia os bytes do arquivo como resposta.
+ */
+function ouveAudio(string $texto, string $conteudo = ''): void
+{
+    Http::fake([
+        'gateway.exemplo.com/*' => Http::response($conteudo === '' ? opus() : $conteudo),
+        'speech.googleapis.com/*' => Http::response(
+            ['results' => [['alternatives' => [['transcript' => $texto]]]]]
+        ),
+    ]);
+}
+
+it('troca o JSON do gateway pela transcrição do que foi dito no áudio', function () {
+    config(['claudinho.transcricao.habilitado' => true, 'claudinho.transcricao.chave' => 'AIza-de-teste']);
+    ouveAudio('preciso remarcar a vistoria de amanhã');
+    fakeStream(rodadaTexto('Remarcada.'));
+
+    mandaAoCanal(anexo('audio/ogg; codecs=opus'))->assertOk();
+
+    // O modelo lê texto, e não um endereço que ele não sabe abrir.
+    expect(mensagemQueChegouAoModelo())
+        ->toContain('preciso remarcar a vistoria de amanhã')
+        ->not->toContain('gateway.exemplo.com');
+});
+
+it('entrega o áudio ao destino da aplicação já com a transcrição junto', function () {
+    config(['claudinho.transcricao.habilitado' => true, 'claudinho.transcricao.chave' => 'AIza-de-teste']);
+    ouveAudio('o portão não fecha');
+    fakeStream(rodadaTexto('Anotado.'));
+
+    mandaAoCanal(anexo('audio/ogg'))->assertOk();
+
+    // Junto, e não depois: sem isto a aplicação teria de transcrever de novo para
+    // guardar o arquivo e o texto lado a lado.
+    expect(DestinoFake::$recebidas)->toHaveCount(1)
+        ->and(DestinoFake::$recebidas[0]->transcricao)->toBe('o portão não fecha')
+        ->and(DestinoFake::$recebidas[0]->descricao)->toBeNull()
+        ->and(DestinoFake::$recebidas[0]->nome)->toEndWith('.ogg');
+});
+
+it('diz que não escuta áudio quando a transcrição está desligada, sem baixar nada', function () {
+    // Não é "tipo não aceito": a diferença muda o que a pessoa faz em seguida —
+    // mandar o recado por escrito, em vez de reenviar achando que o envio falhou.
+    config(['claudinho.transcricao.habilitado' => false]);
+    Http::fake();
+    fakeStream(rodadaTexto('ok'));
+
+    mandaAoCanal(anexo('audio/ogg'))->assertOk();
+
+    Http::assertNothingSent();
+    expect(mensagemQueChegouAoModelo())->toContain('não escuto áudio');
+});
+
+it('recebe áudio mesmo com foto e vídeo desligados', function () {
+    // Os dois interruptores são independentes: quem só quer transcrever recado de
+    // voz não deveria precisar ligar o download de imagem para isso.
+    comEndpoint([
+        'claudinho.api.midias.habilitado' => false,
+        'claudinho.api.midias.hosts' => ['gateway.exemplo.com'],
+        'claudinho.api.midias.destino' => DestinoFake::class,
+        'claudinho.transcricao.habilitado' => true,
+        'claudinho.transcricao.chave' => 'AIza-de-teste',
+    ]);
+    exigeBanco();
+    DestinoFake::$recebidas = [];
+
+    ouveAudio('bom dia, tudo certo por aí?');
+    fakeStream(rodadaTexto('Tudo.'));
+
+    mandaAoCanal(anexo('audio/ogg'))->assertOk();
+
+    expect(mensagemQueChegouAoModelo())->toContain('bom dia, tudo certo por aí?');
+
+    // E a foto continua recusada, porque o interruptor dela segue desligado.
+    mandaAoCanal(anexo('image/jpeg'))->assertOk();
+
+    expect(mensagemQueChegouAoModelo())->toContain('não é aceito neste canal');
+});
+
+it('não manda reenviar o áudio que passa de um minuto', function () {
+    config(['claudinho.transcricao.habilitado' => true, 'claudinho.transcricao.chave' => 'AIza-de-teste']);
+    Http::fake([
+        'gateway.exemplo.com/*' => Http::response(opus()),
+        'speech.googleapis.com/*' => Http::response(
+            ['error' => ['message' => 'Sync input too long. Use LongRunningRecognize.']], 400
+        ),
+    ]);
+    fakeStream(rodadaTexto('ok'));
+
+    mandaAoCanal(anexo('audio/ogg'))->assertOk();
+
+    // Reenviar o mesmo áudio daria no mesmo, e o modelo precisa saber disso para
+    // não pedir de novo.
+    expect(mensagemQueChegouAoModelo())
+        ->toContain('passa de um minuto')
+        ->toContain('NÃO peça o reenvio');
+});
