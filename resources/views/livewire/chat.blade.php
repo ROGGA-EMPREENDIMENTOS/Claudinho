@@ -105,10 +105,32 @@
                 {{-- Tela inteira no mobile: um painel de 26rem em 360px de largura não
                      serve para conversar. Do sm: para cima, ancorado no canto. --}}
                 @class([
-                    'fixed z-40 flex inset-0 sm:inset-auto sm:bottom-24 sm:w-[26rem] sm:h-[38rem] sm:max-h-[calc(100dvh-9rem)]',
+                    // Largura auto: quem dimensiona são os filhos — o card tem os 26rem
+                    // dele, e o histórico pede o que as colunas abertas precisam. Fixar
+                    // aqui obrigaria este arquivo a saber se há uma conversa aberta, que
+                    // é estado do OUTRO componente.
+                    //
+                    // O teto de viewport é o que impede o painel de crescer para fora da
+                    // tela quando as três colunas abrem juntas num monitor curto.
+                    'fixed z-40 flex inset-0 sm:inset-auto sm:w-auto sm:max-w-[calc(100vw-3rem)] sm:bottom-24 sm:h-[38rem] sm:max-h-[calc(100dvh-9rem)] sm:gap-3',
                     'sm:left-6' => $aEsquerda,
                     'sm:right-6' => !$aEsquerda,
+                    // Quem está ancorado à direita cresce para a esquerda, e vice-versa —
+                    // daí a ordem invertida, para o histórico ficar sempre do lado de
+                    // dentro da tela e o card continuar encostado na borda onde o botão
+                    // flutuante vive.
+                    'sm:flex-row-reverse' => $aEsquerda,
                 ])>
+                @if ($historicoAberto && $this->podeVerHistorico())
+                    {{-- Ao lado só a partir do lg: abaixo disso, card mais coluna de
+                         histórico não deixa largura utilizável para nenhum dos dois, e
+                         o histórico cobre o painel até o X devolver a conversa. --}}
+                    <div class="absolute inset-0 z-10 flex min-w-0 lg:static lg:z-auto">
+                        @livewire('claudinho.historico', ['dono' => $this->getId()],
+                            key('claudinho-historico-'.$this->getId()))
+                    </div>
+                @endif
+
                 @include('claudinho::livewire.partials.card', ['flutuante' => true])
             </div>
 
@@ -181,7 +203,26 @@
             </button>
         </div>
     @elseif (! $flutuante)
-        @include('claudinho::livewire.partials.card', ['flutuante' => false])
+        {{-- O mx-auto do card é o que centraliza o par: com o histórico aberto a folga
+             vira margem dos dois lados, e o conjunto continua no meio da página. --}}
+        <div class="relative flex items-stretch gap-3">
+            @include('claudinho::livewire.partials.card', ['flutuante' => false])
+
+            @if ($historicoAberto && $this->podeVerHistorico())
+                {{-- Abaixo do lg não há largura para os dois lado a lado — o histórico
+                     cobre o card, como faz no flutuante.
+
+                     Altura própria e self-start em vez de acompanhar o card: o card cresce
+                     com a conversa, e amarrar os dois faria uma lista comprida esticá-lo
+                     até sobrar espaço vazio embaixo do campo de pergunta. Com altura
+                     fixa, a rolagem acontece dentro da lista, que é onde se procura. --}}
+                <div
+                    class="absolute inset-0 z-10 flex min-w-0 lg:static lg:z-auto lg:self-start lg:h-[34rem] lg:max-h-[75vh]">
+                    @livewire('claudinho.historico', ['dono' => $this->getId()],
+                        key('claudinho-historico-'.$this->getId()))
+                </div>
+            @endif
+        </div>
     @endif
 
     {{-- Também fora do painel, e pelo mesmo motivo do modal de configurações: fixed

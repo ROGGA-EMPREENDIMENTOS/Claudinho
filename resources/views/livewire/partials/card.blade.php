@@ -4,7 +4,12 @@
 <div @class([
     'flex flex-col bg-white border dark:bg-gray-900',
     // Inline fica discreto: é mais um bloco da página.
-    'w-full max-w-4xl mx-auto rounded-lg shadow-sm border-gray-200 dark:border-gray-800' => !$flutuante,
+    //
+    // min-w-0 e SEM shrink-0: com o histórico aberto ao lado, é o chat que encolhe
+    // para caber. As colunas do histórico têm largura fixa e não cedem — elas já são
+    // o mínimo para ler um número e uma conversa; o chat, não: ele tem 4xl de teto
+    // justamente porque sobra largura, e é de lá que o espaço sai.
+    'w-full min-w-0 max-w-4xl mx-auto rounded-lg shadow-sm border-gray-200 dark:border-gray-800' => !$flutuante,
     // No flutuante quem dimensiona é o painel; o card só preenche. Sem cantos
     // arredondados no mobile porque lá ele ocupa a tela inteira. A borda usa o
     // terracota da marca (o mesmo #d3754c das antenas), para o painel e o botão
@@ -13,7 +18,10 @@
     // A 50%, como o anel do botão: quem separa o painel da página é a sombra
     // (shadow-2xl) mais o próprio fundo, não a linha. Borda saturada em volta de
     // uma área grande vira moldura e briga com a conversa lá dentro.
-    'w-full h-full min-h-0 shadow-2xl sm:rounded-lg border-[#d3754c]/50' => $flutuante,
+    // sm:w-[26rem] aqui, e não no painel: com o histórico dividindo a linha, é o card
+    // que declara a largura de que precisa. Encolher a partir dela é permitido — o
+    // painel tem teto de viewport, e estourá-lo seria a conversa saindo da tela.
+    'w-full min-w-0 h-full min-h-0 shadow-2xl sm:w-[26rem] sm:rounded-lg border-[#d3754c]/50' => $flutuante,
 ])>
         <section class="flex items-center justify-between gap-3 px-4 py-2 border-b border-gray-100 dark:border-gray-800">
             <span class="flex items-center min-w-0 gap-2.5">
@@ -96,6 +104,30 @@
                     </button>
                 @endif
 
+                @if ($this->podeVerHistorico())
+                    {{-- Relógio e não lista: o que a pessoa procura ali é "a conversa de
+                         ontem", e a ordem da lista é a do tempo. O mesmo botão fecha, e é o
+                         aria-expanded que conta isso a quem não vê o painel abrir. --}}
+                    <button type="button" wire:click="alternarHistorico"
+                        aria-expanded="{{ $historicoAberto ? 'true' : 'false' }}"
+                        title="{{ $historicoAberto ? 'Fechar o histórico' : 'Histórico de conversas' }}"
+                        aria-label="{{ $historicoAberto ? 'Fechar o histórico' : 'Histórico de conversas' }}"
+                        @class([
+                            'inline-flex items-center justify-center w-8 h-8 transition border rounded-md shrink-0 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1 dark:focus:ring-offset-gray-900',
+                            'text-gray-500 bg-white border-gray-300 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-white' => !$historicoAberto,
+                            // Aberto o botão fica marcado: é o único do header que deixa
+                            // algo na tela depois do clique, e sem a marca o segundo clique
+                            // parece não ter feito nada.
+                            'text-sky-700 bg-sky-50 border-sky-300 dark:text-sky-300 dark:bg-sky-950 dark:border-sky-800' => $historicoAberto,
+                        ])>
+                        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                            stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                    </button>
+                @endif
+
                 @if ($this->podeAdministrar())
                     <button type="button" x-on:click="$dispatch('claudinho-abrir-configuracoes', { dono: @js($this->getId()) })" title="Configurações"
                         aria-label="Configurações"
@@ -153,65 +185,11 @@
                 // permite ao flex encolher e a rolagem acontecer aqui.
                 'grow min-h-0' => $flutuante,
             ])>
-            @forelse ($this->mensagensVisiveis() as $indice => $mensagem)
-                @if ($mensagem['autor'] === 'user')
-                    <article wire:key="msg-{{ $indice }}" class="flex justify-end">
-                        <div
-                            class="px-3 py-2 text-sm whitespace-pre-wrap rounded-lg max-w-[80%] bg-sky-50 text-sky-900 dark:bg-sky-950 dark:text-sky-100">
-                            {{ $mensagem['texto'] }}
-                        </div>
-                    </article>
-                @elseif ($mensagem['tipo'] === 'grafico')
-                    <article wire:key="msg-{{ $indice }}" class="flex justify-start">
-                        <div class="w-full px-3 py-2 rounded-lg max-w-[80%] bg-gray-50 dark:bg-gray-800">
-                            <x-claudinho::grafico :spec="$mensagem['spec']" />
-                        </div>
-                    </article>
-                @elseif ($mensagem['autor'] === 'sistema')
-                    {{-- Alteração não pode ficar com a mesma cor de consulta: o rótulo é o
-                         registro visível de que algo mudou no sistema. --}}
-                    @php($acao = $mensagem['tipo'] === 'acao')
-                    <article wire:key="msg-{{ $indice }}" class="flex justify-start">
-                        <div @class([
-                            'inline-flex items-center gap-1.5 px-2 py-1 text-xs border rounded-md',
-                            'text-gray-500 border-gray-100 bg-gray-50 dark:text-gray-400 dark:border-gray-700 dark:bg-gray-800' => !$acao,
-                            'text-amber-800 border-amber-200 bg-amber-50 dark:text-amber-200 dark:border-amber-800/60 dark:bg-amber-950/40' => $acao && $mensagem['situacao'] === 'concluida',
-                            'text-gray-500 border-gray-200 bg-gray-50 line-through dark:text-gray-400 dark:border-gray-700 dark:bg-gray-800' => $acao && $mensagem['situacao'] === 'recusada',
-                            'text-red-700 border-red-200 bg-red-50 dark:text-red-300 dark:border-red-900/60 dark:bg-red-950/40' => $acao && $mensagem['situacao'] === 'erro',
-                            'text-amber-700 border-amber-200 bg-amber-50 dark:text-amber-300 dark:border-amber-800/60 dark:bg-amber-950/40' => $acao && $mensagem['situacao'] === 'pendente',
-                        ])>
-                            @if ($acao)
-                                <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                    stroke="currentColor" aria-hidden="true">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                                </svg>
-                            @else
-                                <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                                    stroke="currentColor" aria-hidden="true">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75" />
-                                </svg>
-                            @endif
-                            {{ $mensagem['texto'] }}
-                        </div>
-                    </article>
-                @else
-                    <article wire:key="msg-{{ $indice }}" class="flex justify-start">
-                        <div
-                            class="px-3 py-2 overflow-x-auto text-sm rounded-lg max-w-[80%] bg-gray-50 text-gray-800 dark:bg-gray-800 dark:text-gray-100">
-                            <div
-                                class="prose-sm prose max-w-none dark:prose-invert prose-table:my-2 prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-p:my-1 prose-ul:my-1 prose-headings:my-2">
-                                {!! $mensagem['html'] !!}
-                            </div>
-                        </div>
-                    </article>
-                @endif
-            @empty
-                <article class="m-auto text-sm text-center text-gray-400 dark:text-gray-500">
-                    {{ config('claudinho.placeholder_vazio', 'Faça uma pergunta para começar.') }}
-                </article>
-            @endforelse
+            @include('claudinho::livewire.partials.mensagens', [
+                'mensagens' => $this->mensagensVisiveis(),
+                'prefixo' => 'msg',
+                'vazio' => config('claudinho.placeholder_vazio', 'Faça uma pergunta para começar.'),
+            ])
 
             {{-- Ação proposta pelo modelo. É o único ponto do chat em que nada acontece sem
                  um clique: o loop está pausado aqui, com o tool_use ainda sem resultado. --}}

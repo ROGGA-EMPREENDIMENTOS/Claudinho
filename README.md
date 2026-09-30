@@ -26,6 +26,11 @@ consultas do seu sistema — e o pacote garante que o modelo só veja o que o us
 - **Janela "Sobre"** — versão instalada, versões do ambiente e modelo em uso, além de como o
   assistente trabalha, pelo ⓘ do header. Sem gate: é informação de quem usa o chat.
   Ver [Janela "Sobre"](#janela-sobre).
+- **Histórico das conversas** — o relógio do header abre, ao lado da caixa de conversa, a
+  lista das conversas gravadas pelos canais externos, da mais recente para a mais antiga;
+  clicar num identificador abre a conversa inteira numa segunda coluna, ao lado da lista.
+  Busca por número ou por nome, atrás do gate de administração.
+  Ver [Histórico de conversas](#histórico-de-conversas).
 - **Card na página ou chat flutuante** — o mesmo componente serve de tela dedicada ou de
   botão fixo num canto do layout, aberto em painel. Ver [Chat flutuante](#chat-flutuante).
 - **Endpoint HTTP** — o mesmo assistente por API, para WhatsApp e outros canais externos,
@@ -280,6 +285,126 @@ nenhum. Mesma decisão do Claudinho animado, que é SVG inline pelo mesmo motivo
 **Sem gate, de propósito.** Nenhum segredo passa por ali (chave e token ficam na engrenagem,
 que tem gate próprio), e a informação serve justamente a quem **não** administra o pacote.
 Para um header mais enxuto, `'sobre' => false` no config tira o botão — e a janela junto.
+
+## Histórico de conversas
+
+O **relógio** no header abre um painel **ao lado da caixa de conversa** — não por cima dela.
+O painel cresce com o que está aberto: só a lista ocupa 16 rem, e a conversa escolhida abre
+numa **segunda coluna** de 22 rem ao lado dela.
+
+```
+┌─────────┬────────────┬─────────────────────┐
+│  LISTA  │  CONVERSA  │        CHAT         │
+│ 47999.. │ ola        │ Digite sua          │
+│ 47991.. │ Olá! Eu... │ pergunta...         │
+│ ▲ rola  │ ▲ rola     │                     │
+└─────────┴────────────┴─────────────────────┘
+  16rem      22rem        o que sobrar
+```
+
+A lista **continua à vista** enquanto se lê uma conversa, que é o que permite pular de uma
+para outra sem voltar — a linha aberta fica marcada.
+
+**Quem encolhe é o chat.** As colunas do histórico têm largura fixa e não cedem: elas já são
+o mínimo para ler um número e uma conversa. O card tem `max-w-4xl` de teto justamente porque
+sobra largura ali, e é de lá que o espaço sai. No modo flutuante o painel tem largura `auto`
+com teto de viewport, para as colunas nunca crescerem para fora da tela.
+
+Os pontos de quebra seguem a largura disponível:
+
+| Largura | O que aparece |
+|---|---|
+| `< lg` (1024) | O histórico **cobre** o chat. Lado a lado não deixaria largura utilizável para nenhum dos dois. |
+| `lg` – `xl` | Histórico ao lado do chat, **uma coluna por vez** — a conversa toma o lugar da lista, com o caminho de volta no cabeçalho. |
+| `≥ xl` (1280) | **As duas colunas** do histórico mais o chat. |
+
+**A lista rola dentro dela mesma** — no card inline o histórico tem altura própria (34 rem,
+teto de 75 vh) em vez de acompanhar o card, senão uma lista comprida esticaria o chat até
+sobrar espaço vazio embaixo do campo de pergunta.
+
+A lista traz os **identificadores ordenados pela última alteração** (`updated_at`), e cada
+linha resume a conversa: o canal, o nome de quem estava do outro lado, há quanto tempo, se
+está em andamento ou já encerrou por inatividade, quantas falas houve e a última delas.
+Clicar abre **a conversa inteira gravada no estado** — as mesmas bolhas do chat, com os
+mesmos rótulos de consulta e de alteração.
+
+**O que ele mostra são as conversas dos canais externos** (WhatsApp e afins). São as únicas
+com estado no banco: a conversa desta tela vive no componente Livewire e morre com a sessão.
+É por isso que a chave da lista é o identificador do canal e não um título — do outro lado
+não há quem dê nome à conversa.
+
+### O gate é o de administração, e o padrão é esse por um motivo
+
+Isto expõe a conversa de **outras pessoas**, com os dados que elas consultaram. Trate como
+tela de auditoria:
+
+```php
+'historico' => [
+    'habilitado' => true,
+    'permissao' => env('CLAUDINHO_PERMISSAO_HISTORICO'),
+    'limite' => 30,
+    'varredura' => 200,
+],
+```
+
+`permissao` vazio **não** libera geral: cai em `permissao_admin`, que é o mais restritivo dos
+dois. Um config publicado antes da 2.0 não tem a chave nenhuma, e precisa herdar o lado
+seguro — atualizar o pacote não pode abrir a conversa dos outros para quem só usa o chat.
+Defina `permissao` só para dar o histórico a quem **não** administra o resto: um supervisor
+de atendimento, por exemplo.
+
+`limite` é quantas conversas a lista traz. O estado inteiro de cada uma vem junto, porque é
+dele que saem a prévia e a contagem — subir muito é trazer alguns MB de JSON a cada abertura.
+Para achar uma conversa antiga, a busca serve melhor que uma lista comprida.
+
+### Buscar por número ou por nome custa coisas diferentes
+
+O campo aceita os dois, e o caminho de cada um é outro porque eles moram em lugares
+diferentes:
+
+- **Número** está na tabela. O `LIKE` resolve e **alcança todas** as conversas, sem teto.
+  A comparação é pelos dígitos, não pelo texto digitado: `(47) 99911-0130` acha
+  `47999110130`, que é como o gateway grava — quem procura cola do jeito que tem em mãos.
+- **Nome** não está em lugar nenhum do pacote. Quem sabe é o resolver da aplicação, **uma
+  chamada por conversa**. Por isso a busca por nome varre as `varredura` mais recentes
+  (200 por padrão) e filtra fora do SQL — e a tela **avisa** quando bateu nesse teto, porque
+  um cap silencioso lê como *"essa pessoa não existe"*, que é conclusão bem diferente de
+  *"não achei entre as mais recentes"*.
+
+Termo com letra é sempre busca por nome, mesmo trazendo dígito: ninguém digita `joão 47`
+procurando um telefone.
+
+Se a sua varredura precisa ser grande, lembre que cada linha varrida é uma chamada ao seu
+resolver — vale conferir se ele tem cache antes de subir o número.
+
+### Quem dá nome a quem
+
+O nome vem do **mesmo resolver que o endpoint usa** (`api.resolvedor`): é o único que sabe
+mapear telefone para usuário nesta aplicação. O provedor de autenticação padrão não serve
+sozinho — quem atende pelo WhatsApp costuma viver em outro guard que não o `web`.
+
+O id devolvido é conferido contra o gravado na conversa. Resolver que passou a apontar para
+outra pessoa devolveria o nome de quem **não** teve aquela conversa, e num histórico que
+existe para auditar isso é pior do que não dar nome nenhum: aparece `usuário #681`.
+
+O nome vai para a tela **em caixa alta**. Uniformizar é o ponto: o cadastro de origem grava
+parte dos nomes gritando e parte não, e misturados numa coluna estreita os em caixa alta leem
+como se estivessem marcados. Assim todos pesam igual, e o nome fica distinto do número logo
+acima. Espaço repetido do cadastro é colapsado (`MAXWELL  F.` sairia com buraco no meio), e o
+`usuário #681` do resolver que não respondeu passa intacto — aquilo não é nome, é a ausência
+de um. A busca continua casando dos dois jeitos.
+
+### A pendência aparece, o botão não
+
+Conversa parada esperando confirmação mostra a frase da pendência como aviso — e **não** o
+par confirmar/cancelar do chat. Quem decide está do outro lado, no aplicativo de mensagens; um
+botão aqui executaria a alteração em nome dele.
+
+### O que o histórico não alcança
+
+A faxina do `claudinho:limpar-conversas` apaga conversas vencidas, e o que ela apagou não
+está mais aqui. Se o histórico tem valor de registro para a sua operação, revise o `--dias`
+do agendamento — ou tire o comando do schedule.
 
 ## Colocando na tela
 

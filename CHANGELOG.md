@@ -1,5 +1,120 @@
 # Changelog
 
+## v2.0.0
+
+### Adicionado
+
+- **Histórico das conversas, ao lado da caixa de conversa.** O relógio no header abre um
+  painel com os identificadores ordenados pela última alteração (`updated_at`), e clicar num
+  deles mostra a conversa inteira gravada no estado — as mesmas bolhas do chat, com os mesmos
+  rótulos de consulta e de alteração.
+
+  **Ao lado, e não por cima**, em duas colunas: a lista (16 rem) e a conversa escolhida
+  (22 rem), com o chat seguindo ao lado das duas. A lista continua à vista enquanto se lê uma
+  conversa — é o que permite pular de uma para outra sem voltar —, e a linha aberta fica
+  marcada. Quem está lendo o histórico continua vendo o chat, que é justamente o motivo de
+  consultar um: comparar o que foi respondido antes com o que se está perguntando agora.
+
+  **Quem encolhe é o chat.** As colunas do histórico não cedem — são o mínimo para ler um
+  número e uma conversa —, e o card perdeu o `shrink-0` e ganhou `min-w-0`: ele tem `max-w-4xl`
+  de teto justamente porque sobra largura ali, e é de lá que o espaço sai. No flutuante o
+  painel passou a ter largura `auto` com teto de viewport, porque fixá-la obrigaria o
+  `chat.blade.php` a saber se há uma conversa aberta, que é estado do outro componente.
+
+  Os pontos de quebra seguem a largura disponível: abaixo do `lg` o histórico **cobre** o
+  chat (lado a lado não deixaria largura utilizável para nenhum dos dois); entre `lg` e `xl`
+  ele fica ao lado com uma coluna por vez, e a conversa toma o lugar da lista com o caminho
+  de volta no cabeçalho; do `xl` em diante, as duas colunas mais o chat.
+
+  **A lista rola dentro dela mesma.** No card inline o histórico tem altura própria (34 rem,
+  teto de 75 vh) em vez de acompanhar o card: amarrar os dois faria uma lista comprida
+  esticá-lo até sobrar espaço vazio embaixo do campo de pergunta.
+
+  O que ele mostra são as conversas dos **canais externos** (WhatsApp e afins), as únicas com
+  estado no banco: a conversa da tela vive no componente Livewire e morre com a sessão. É por
+  isso que a chave da lista é o identificador do canal, e não um título — do outro lado não há
+  quem dê nome à conversa. A lista diz isso em voz alta quando está vazia, senão a conclusão
+  natural seria que o histórico está quebrado.
+
+  **O gate padrão é o de administração**, e `historico.permissao` vazio não libera geral: cai
+  em `permissao_admin`, o mais restritivo dos dois. Isto expõe a conversa de outras pessoas,
+  com os dados que elas consultaram — e um config publicado antes desta versão não tem a
+  chave nenhuma, então precisa herdar o lado seguro. Atualizar o pacote não pode abrir a
+  conversa dos outros para quem só usa o chat.
+
+  O nome vai para a tela em CAIXA ALTA. Uniformizar é o ponto: o cadastro de origem grava
+  parte dos nomes gritando e parte não, e misturados numa coluna estreita os em caixa alta
+  leem como se estivessem marcados — ênfase que ninguém quis dar. Assim todos pesam igual, e
+  o nome fica distinto do número logo acima, que é a outra coisa que se lê ali. Espaço
+  repetido do cadastro é colapsado, senão `MAXWELL  F.` sai com buraco no meio; o
+  `usuário #681` do resolver que não respondeu passa intacto, porque aquilo não é nome.
+
+  A pendência de confirmação aparece como aviso, e não como o par confirmar/cancelar do chat:
+  quem decide está no aplicativo de mensagens, e um botão aqui executaria a alteração em nome
+  dele.
+
+  O nome de quem estava do outro lado vem do **mesmo resolver que o endpoint usa**, e não do
+  provedor de autenticação padrão — quem atende pelo WhatsApp costuma viver em outro guard que
+  não o `web`, e ali o id simplesmente não é achado. O id devolvido é conferido contra o
+  gravado na conversa: resolver que passou a apontar para outra pessoa daria o nome de quem
+  NÃO teve aquela conversa, e num histórico que existe para auditar isso é pior do que
+  mostrar `usuário #681`.
+
+- **`Rogga\Claudinho\Exibicao`.** A conversa da API traduzida para o que a tela mostra, num
+  lugar só. Agora há dois lugares que desenham a MESMA conversa — o chat, a partir do estado
+  do Livewire, e o histórico, a partir do estado do banco —, e o que separa "alterou dados" de
+  "o usuário recusou" é justamente a parte que não pode divergir: num registro de alteração, o
+  rótulo errado é o que faz alguém concluir que o sistema mudou algo que não mudou.
+
+  Junto vieram `ultimaFala()` e `falas()`, que a lista usa para resumir cada linha. `falas()`
+  conta o que uma pessoa chamaria de mensagem: a volta de `tool_result` é mensagem para a API
+  e não é nada para quem leu a conversa, e somá-la faria uma troca de duas linhas aparecer
+  como seis. Ele conta os blocos direto em vez de passar pelo `mensagens()`, que roda o
+  markdown de cada texto — uma lista de trinta conversas pagaria trinta renderizações
+  completas para mostrar trinta números.
+
+- **Busca por número ou por nome**, e os dois caminhos custam coisas diferentes. O número
+  está na tabela: o `LIKE` resolve e alcança todas as conversas, comparando pelos DÍGITOS e
+  não pelo texto digitado — `(47) 99911-0130` acha `47999110130`, que é como o gateway
+  grava, e quem procura cola do jeito que tem em mãos. O nome não está em lugar nenhum do
+  pacote: quem sabe é o resolver da aplicação, uma chamada por conversa, então a busca por
+  nome varre as `varredura` mais recentes (200 por padrão) e filtra fora do SQL.
+
+  A tela **avisa** quando a busca por nome bateu nesse teto. Cap silencioso lê como "essa
+  pessoa não existe", que é conclusão bem diferente de "não achei entre as 200 mais
+  recentes" — e é justamente a diferença que faz alguém desistir de procurar uma conversa
+  que está lá.
+
+  Termo com letra é busca por nome mesmo trazendo dígito: ninguém digita `joão 47`
+  procurando um telefone.
+
+- **`historico` no config**, com `habilitado`, `permissao`, `limite` e `varredura`. Chave nova de primeiro
+  nível de propósito: o `mergeConfigFrom` é raso, e é justamente isso que faz a seção inteira
+  chegar a quem já tinha o config publicado — inclusive o padrão seguro da permissão.
+
+- **`ConversaExterna::scopeRecentes()`**, que é a ordem em que o histórico é lido. Ordena por
+  `updated_at` e desempata pelo `id`: o gateway entrega em lote, e duas conversas gravadas no
+  mesmo segundo sairiam em ordem indefinida — a lista trocaria de ordem entre um render e
+  outro sem nada ter mudado.
+
+### Mudado
+
+- **As bolhas da conversa saíram do `card.blade.php` para
+  `partials/mensagens.blade.php`.** Mesma marcação, agora parametrizada por `$mensagens`,
+  `$prefixo` (do `wire:key`) e `$vazio` — é o que permite ao histórico desenhar a conversa
+  exatamente como o chat desenha, sem uma segunda cópia de oitenta linhas de HTML para manter
+  em sincronia.
+
+  **Quem publicou as views com `--tag=claudinho-views` precisa republicar** para ter o
+  relógio e o painel. As views publicadas continuam funcionando como estão — só ficam sem o
+  histórico, porque o botão e o `@livewire` do painel vivem nos arquivos do pacote. É a razão
+  do salto de major: nada quebra, mas há um passo de atualização que não é só `composer
+  update`.
+
+- **O painel do histórico degrada em vez de derrubar a página.** Banco fora do ar, ou
+  migration ainda não rodada, respondem "a tabela não existe" no painel — e não uma exceção
+  que levaria junto a conversa que a pessoa estava tendo. A falha continua indo para o log.
+
 ## v1.9.0
 
 ### Adicionado

@@ -17,6 +17,7 @@ use Rogga\Claudinho\Http\Middleware\AutenticaCanal;
 use Rogga\Claudinho\Http\Middleware\InterpretaMidia;
 use Rogga\Claudinho\Livewire\Chat;
 use Rogga\Claudinho\Livewire\Configuracoes;
+use Rogga\Claudinho\Livewire\Historico;
 use Rogga\Claudinho\View\Components\Grafico;
 
 class ClaudinhoServiceProvider extends ServiceProvider
@@ -55,6 +56,7 @@ class ClaudinhoServiceProvider extends ServiceProvider
 
         Livewire::component('claudinho.chat', Chat::class);
         Livewire::component('claudinho.configuracoes', Configuracoes::class);
+        Livewire::component('claudinho.historico', Historico::class);
         Blade::component('claudinho::grafico', Grafico::class);
 
         $this->registraRotas();

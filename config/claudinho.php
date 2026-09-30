@@ -57,6 +57,46 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Histórico de conversas
+    |--------------------------------------------------------------------------
+    |
+    | O relógio no header abre, ao lado da conversa, a lista das conversas
+    | GRAVADAS — as do canal externo (WhatsApp e afins), que são as únicas com
+    | estado no banco. A conversa da tela vive no componente e morre com a sessão.
+    |
+    | Isto mostra a conversa de OUTRAS pessoas, com os dados que elas consultaram.
+    | Trate como tela de auditoria: o padrão exige o gate de administração, e
+    | afrouxar é decisão de quem instala.
+    |
+    */
+
+    'historico' => [
+
+        // Deixe false para o relógio nem aparecer no header.
+        'habilitado' => true,
+
+        // Gate exigido para abrir o histórico. Vazio NÃO libera geral: cai em
+        // `permissao_admin`, que é o mais restritivo dos dois. Defina aqui só para
+        // dar o histórico a quem NÃO administra o resto — um supervisor de
+        // atendimento, por exemplo.
+        'permissao' => env('CLAUDINHO_PERMISSAO_HISTORICO'),
+
+        // Quantas conversas a lista traz. O estado inteiro de cada uma vem junto,
+        // porque é dele que saem a prévia e a contagem — subir muito este número é
+        // trazer alguns MB de JSON a cada abertura. Para achar uma conversa antiga,
+        // a busca serve melhor que uma lista comprida.
+        'limite' => 30,
+
+        // Teto da busca POR NOME. O número está na tabela e o LIKE alcança todas as
+        // conversas; o nome não está em lugar nenhum do pacote — quem sabe é o
+        // resolver da aplicação, uma chamada por conversa. Por isso a busca por nome
+        // varre só as mais recentes, e a tela avisa quando bateu neste teto.
+        'varredura' => 200,
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Aparência
     |--------------------------------------------------------------------------
     |

@@ -103,4 +103,24 @@ class ConversaExterna extends Model
     {
         return $query->where('expira_em', '<', now());
     }
+
+    /**
+     * Da alteração mais recente para a mais antiga, que é a ordem em que o histórico
+     * é lido: quem procura uma conversa está procurando a última.
+     *
+     * `updated_at` e não `expira_em`: o vencimento anda sozinho com a inatividade
+     * configurada, e ordenar por ele misturaria a conversa de agora com a de ontem
+     * toda vez que alguém mexesse no prazo.
+     *
+     * O id desempata porque duas conversas gravadas no mesmo segundo — o gateway
+     * entrega em lote — sairiam em ordem indefinida, e a lista trocaria de ordem
+     * entre um render e outro sem nada ter mudado.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeRecentes(Builder $query): Builder
+    {
+        return $query->orderByDesc('updated_at')->orderByDesc('id');
+    }
 }

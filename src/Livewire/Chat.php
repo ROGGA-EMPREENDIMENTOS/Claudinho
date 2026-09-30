@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace Rogga\Claudinho\Livewire;
 
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Rogga\Claudinho\Claudinho;
 use Rogga\Claudinho\Conversa;
-use Rogga\Claudinho\FerramentaRegistry;
-use Rogga\Claudinho\Grafico\Especificacao;
+use Rogga\Claudinho\Exibicao;
 use Rogga\Claudinho\Models\Configuracao;
 use Throwable;
 
@@ -66,6 +65,25 @@ class Chat extends Component
      */
     #[Locked]
     public bool $flutuante = false;
+
+    /**
+     * O painel de histórico está aberto ao lado da conversa?
+     *
+     * Mora aqui, e não no Alpine como o modal de configurações, porque não é só
+     * mostrar e esconder: o painel divide a largura com o card, e quem desenha essa
+     * largura é o Blade. Estado no cliente deixaria o servidor mandar sempre o
+     * layout de painel fechado, e o card só encolheria depois do primeiro morph.
+     *
+     * O componente do histórico nem é montado enquanto está fechado — é o que evita
+     * uma consulta ao banco em toda página que só tem o botão flutuante no layout.
+     *
+     * Locked porque abrir é o que monta o painel: sem isto, um `$wire.set()` legítimo
+     * de quem não tem a permissão montaria o componente só para tomar 403 no mount, e
+     * o erro chegaria no meio da conversa de quem estava usando o chat. Nada vaza nos
+     * dois casos — o painel se recusa a montar —, mas um deles não estraga a tela.
+     */
+    #[Locked]
+    public bool $historicoAberto = false;
 
     public function mount(): void
     {
@@ -238,68 +256,15 @@ class Chat extends Component
     }
 
     /**
-     * Achata a conversa para exibição: texto, gráficos e o rótulo das consultas e
-     * alterações. Blocos tool_result (JSON cru) não vão para a tela.
+     * Achata a conversa para exibição. Quem traduz é o Exibicao, compartilhado com
+     * o histórico: as duas telas desenham a mesma conversa e não podem divergir no
+     * que separa "alterou" de "o usuário recusou".
      *
      * @return array<int, array<string, mixed>>
      */
     public function mensagensVisiveis(): array
     {
-        $registro = app(FerramentaRegistry::class);
-        $situacoes = $this->situacoes();
-        $visiveis = [];
-
-        foreach ($this->conversa as $mensagem) {
-            $blocos = is_array($mensagem['content'])
-                ? $mensagem['content']
-                : [['type' => 'text', 'text' => $mensagem['content']]];
-
-            foreach ($blocos as $bloco) {
-                $tipo = $bloco['type'] ?? null;
-
-                if ($tipo === 'text' && filled(trim((string) ($bloco['text'] ?? '')))) {
-                    $texto = trim((string) $bloco['text']);
-
-                    $visiveis[] = [
-                        'autor' => $mensagem['role'],
-                        'tipo' => 'texto',
-                        'texto' => $texto,
-                        // Só a resposta do modelo vira markdown; o que o usuário digitou fica escapado.
-                        'html' => $mensagem['role'] === 'assistant' ? $this->markdown($texto) : null,
-                    ];
-                }
-
-                if ($tipo === 'tool_use' && ($bloco['name'] ?? '') === 'gerar_grafico') {
-                    $spec = Especificacao::validar((array) ($bloco['input'] ?? []))['spec'];
-
-                    if ($spec !== null) {
-                        $visiveis[] = [
-                            'autor' => 'sistema',
-                            'tipo' => 'grafico',
-                            'texto' => $spec['titulo'],
-                            'spec' => $spec,
-                        ];
-                    }
-
-                    continue;
-                }
-
-                if ($tipo === 'tool_use') {
-                    $nome = (string) ($bloco['name'] ?? '');
-                    $acao = $registro->ehAcao($nome);
-                    $situacao = $situacoes[(string) ($bloco['id'] ?? '')] ?? 'pendente';
-
-                    $visiveis[] = [
-                        'autor' => 'sistema',
-                        'tipo' => $acao ? 'acao' : 'consulta',
-                        'situacao' => $situacao,
-                        'texto' => $this->rotulo($nome, (array) ($bloco['input'] ?? []), $acao, $situacao),
-                    ];
-                }
-            }
-        }
-
-        return $visiveis;
+        return Exibicao::mensagens($this->conversa);
     }
 
     public function temConversa(): bool
@@ -344,79 +309,35 @@ class Chat extends Component
     }
 
     /**
-     * html_input strip é obrigatório: a resposta do modelo carrega dados vindos do
-     * banco e não pode virar HTML executável.
+     * Gate do relógio. Só decide se o botão e o painel aparecem — quem barra a
+     * leitura é o próprio componente do histórico, a cada chamada.
      */
-    private function markdown(string $texto): string
+    public function podeVerHistorico(): bool
     {
-        return Str::markdown($texto, [
-            'html_input' => 'strip',
-            'allow_unsafe_links' => false,
-        ]);
+        return Historico::disponivel();
     }
 
     /**
-     * Situação de cada tool_use, lida do tool_result que veio depois. É o que
-     * separa "executou" de "o usuário recusou" na conversa: sem isso os dois
-     * apareceriam com o mesmo rótulo, o que num histórico de alteração é grave.
-     *
-     * @return array<string, string>
+     * Abre e fecha o painel. Revalida o gate porque `wire:click` é chamada do
+     * cliente: botão ausente no HTML não é autorização.
      */
-    private function situacoes(): array
+    public function alternarHistorico(): void
     {
-        $situacoes = [];
+        abort_unless($this->podeVerHistorico(), 403);
 
-        foreach ($this->conversa as $mensagem) {
-            if (! is_array($mensagem['content'])) {
-                continue;
-            }
-
-            foreach ($mensagem['content'] as $bloco) {
-                if (($bloco['type'] ?? null) !== 'tool_result') {
-                    continue;
-                }
-
-                $conteudo = json_decode((string) ($bloco['content'] ?? ''), true);
-                $conteudo = is_array($conteudo) ? $conteudo : [];
-
-                $situacoes[(string) ($bloco['tool_use_id'] ?? '')] = match (true) {
-                    ($conteudo['recusada'] ?? false) === true => 'recusada',
-                    isset($conteudo['erro']) => 'erro',
-                    default => 'concluida',
-                };
-            }
-        }
-
-        return $situacoes;
+        $this->historicoAberto = ! $this->historicoAberto;
     }
 
     /**
-     * @param  array<string, mixed>  $input
+     * O X do próprio painel. Vem por evento porque quem fecha é o outro componente,
+     * e o dono é comparado porque a mesma página pode ter dois chats — sem isso, o
+     * X de um fecharia o painel do outro junto.
      */
-    private function rotulo(string $nome, array $input, bool $acao, string $situacao): string
+    #[On('claudinho-historico-fechar')]
+    public function fecharHistorico(string $dono = ''): void
     {
-        $argumentos = [];
-
-        foreach ($input as $chave => $valor) {
-            if (blank($valor)) {
-                continue;
-            }
-
-            $argumentos[] = $chave.': '.(is_scalar($valor) ? $valor : json_encode($valor, JSON_UNESCAPED_UNICODE));
+        if ($dono === '' || $dono === $this->getId()) {
+            $this->historicoAberto = false;
         }
-
-        $alvo = $nome.($argumentos === [] ? '' : ' ('.implode(', ', $argumentos).')');
-
-        if (! $acao) {
-            return 'Consultou '.$alvo;
-        }
-
-        return match ($situacao) {
-            'recusada' => 'Alteração não autorizada pelo usuário: '.$alvo,
-            'erro' => 'Alteração falhou: '.$alvo,
-            'pendente' => 'Aguardando confirmação: '.$alvo,
-            default => 'Alterou dados: '.$alvo,
-        };
     }
-
 }
