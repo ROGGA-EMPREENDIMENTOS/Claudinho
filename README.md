@@ -58,6 +58,27 @@ aparece com imagem quebrada — ou defina `'logo' => false` no config para exibi
 Como é arquivo em `public/`, republique a cada `composer update` do pacote (vale colocar
 `@php artisan vendor:publish --tag=claudinho-assets --force` no `post-update-cmd`).
 
+### Atualizando da 1.x para a 2.0
+
+```bash
+composer update rogga/claudinho
+php artisan vendor:publish --tag=claudinho-views --force   # SÓ se você publicou as views
+```
+
+Nada quebra sem o `--force`, e é por isso que ele não está no bloco de instalação: quem
+publicou as views continua com o chat funcionando exatamente como estava. O que falta é o
+[histórico](#histórico-de-conversas) — o relógio do header e o painel vivem nos arquivos do
+pacote, e uma cópia publicada na 1.x não os tem. **Republicar sobrescreve as suas edições**,
+então guarde o diff antes se você customizou alguma view.
+
+O config **não** precisa ser republicado: `historico` é chave nova de primeiro nível, e o
+`mergeConfigFrom` entrega a seção inteira — com o gate de administração como padrão — a quem
+já tem o `config/claudinho.php` no repositório. Publicar de novo sobrescreveria o que você
+ajustou lá.
+
+Nenhuma migration nova: o histórico lê a tabela `claudinho_conversas`, que existe desde a 1.3
+(foi ela que nasceu com o endpoint de canais externos).
+
 No `.env`:
 
 ```
