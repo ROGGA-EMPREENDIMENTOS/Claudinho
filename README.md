@@ -619,9 +619,10 @@ Três regras conservadoras, e as três são deliberadas:
 2. **Qualquer outra coisa cancela**, em vez de deixar pendente. Pendência viva esperaria um
    `sim` que pode chegar em outro assunto, meia hora depois.
 3. **Prazo próprio**, mais curto que o da conversa (`api.minutos_confirmacao`, padrão 5, também
-   editável em tela). E
-   mais de uma alteração pendente na mesma rodada cancela todas: uma frase de texto não
-   distingue "sim" para qual delas.
+   editável em tela). Vencido o prazo — ou vencida a conversa inteira, que leva a pendência
+   junto —, a alteração é cancelada e o motivo sai na frente da próxima resposta: sem ele o
+   `sim` que chegou tarde parece ter sido ignorado. E mais de uma alteração pendente na mesma
+   rodada cancela todas: uma frase de texto não distingue "sim" para qual delas.
 
 Para deixar o canal **somente-leitura** sem desregistrar as ações (que continuam valendo na
 tela), `'acoes' => false` — ou o interruptor *Alterações de dados neste canal*, na engrenagem.
