@@ -210,6 +210,51 @@ it('cancela a ação quando o prazo de confirmação expira', function () {
         ->and($resposta->json('resposta'))->toContain('prazo para confirmar');
 });
 
+it('avisa que a confirmação expirou quando a conversa inteira venceu junto', function () {
+    registro([new CancelarPedido]);
+    fakeStreams(
+        rodadaToolUse('toolu_a', 'cancelar_pedido', ['pedido' => 4821]),
+        rodadaTexto('Oi! Como posso ajudar?'),
+    );
+
+    conversar('cancela o pedido 4821')->assertOk();
+
+    // O caso real: o cliente respondeu meia hora depois. Os dois prazos venceram, e
+    // o estado é zerado ANTES do pausada() — sem o aviso, o "sim" chega ao modelo
+    // como primeira mensagem de uma conversa em branco.
+    ConversaExterna::query()->update([
+        'expira_em' => now()->subMinute(),
+        'confirmar_ate' => now()->subMinute(),
+    ]);
+
+    $resposta = conversar('sim');
+
+    $registro = ConversaExterna::query()->firstOrFail();
+
+    expect(CancelarPedido::$executadas)->toBe([])
+        ->and($resposta->json('resposta'))->toContain('prazo para confirmar')
+        // O histórico recomeçou mesmo assim: o aviso explica, não ressuscita.
+        ->and($registro->estado['mensagens'])->toHaveCount(2)
+        ->and($registro->confirmar_ate)->toBeNull();
+});
+
+it('não conta a pendência de outra pessoa a quem assumiu o número', function () {
+    registro([new CancelarPedido]);
+    fakeStreams(
+        rodadaToolUse('toolu_a', 'cancelar_pedido', ['pedido' => 4821]),
+        rodadaTexto('Oi! Como posso ajudar?'),
+    );
+
+    conversar('cancela o pedido 4821')->assertOk();
+
+    ResolvedorFake::$conhecidos = ['5547999998888' => 99];
+
+    $resposta = conversar('bom dia');
+
+    expect(CancelarPedido::$executadas)->toBe([])
+        ->and($resposta->json('resposta'))->not->toContain('prazo para confirmar');
+});
+
 it('não deixa a pergunta seguinte passar por cima da pendência', function () {
     registro([new CancelarPedido]);
     fakeStreams(

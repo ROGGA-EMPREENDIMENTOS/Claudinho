@@ -1,5 +1,29 @@
 # Changelog
 
+## v2.0.1
+
+### Corrigido
+
+- **Confirmação que morre junto com a conversa agora é dita, não engolida.** O cliente recebia
+  a proposta de uma alteração, respondia "sim" depois do silêncio que começa conversa nova, e
+  o que voltava era o modelo se apresentando do zero — porque o `emAndamento()` zera o estado
+  antes de o controller testar o `pausada()`, e sem estado não há pendência para o `decidir()`
+  recusar. A mensagem que existia para esse caso ("o prazo para confirmar expirou e a alteração
+  foi cancelada") nunca chegava a quem mais precisava dela: quem confirmou tarde.
+
+  O que denuncia a pendência perdida é o `confirmar_ate`, que fica na linha e sobrevive ao
+  estado zerado. A conversa segue recomeçando — é o que o silêncio longo pede, e ressuscitar
+  meia hora de histórico para responder um "sim" solto custaria caro e confundiria o modelo —,
+  mas o motivo sai na frente da resposta, pelo mesmo prefixo que o `decidir()` já usava.
+
+  A frase é uma só para os dois caminhos (`CONFIRMACAO_EXPIRADA`): quem está do outro lado não
+  distingue "o prazo da confirmação venceu" de "a conversa inteira venceu", e são o mesmo fato
+  para ele — nada foi feito, peça de novo.
+
+  O reaproveitamento da linha também passou a limpar o `confirmar_ate` junto com o estado. Na
+  prática ele era sempre reescrito no fim da requisição, mas uma conversa nova carregando o
+  prazo da anterior é armadilha esperando o caminho que não reescreve.
+
 ## v2.0.0
 
 ### Adicionado

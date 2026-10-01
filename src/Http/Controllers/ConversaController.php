@@ -27,6 +27,15 @@ use Throwable;
  */
 class ConversaController
 {
+    /**
+     * O mesmo texto nos dois caminhos em que a confirmação morre pelo prazo: o
+     * "sim" que chega tarde com a conversa viva, e o que chega depois de o
+     * histórico inteiro ter vencido. Para quem está do outro lado é o mesmo fato,
+     * então é a mesma frase.
+     */
+    private const CONFIRMACAO_EXPIRADA = 'O prazo para confirmar expirou e a alteração foi cancelada. '
+        .'Se ainda quiser, peça de novo.';
+
     public function conversar(Request $request): JsonResponse
     {
         $dados = $request->validate([
@@ -48,9 +57,21 @@ class ConversaController
         // Conversa pausada: a mensagem que chega é a DECISÃO da ação proposta, não
         // uma pergunta nova. Tratar como pergunta deixaria a pendência aberta e a
         // conversa travada, porque a API exige tool_result para todo tool_use.
-        return $motor->pausada()
-            ? $this->decidir($registro, $motor, $dados['mensagem'])
-            : $this->perguntar($registro, $motor, $dados['mensagem']);
+        if ($motor->pausada()) {
+            return $this->decidir($registro, $motor, $dados['mensagem']);
+        }
+
+        // Aqui a conversa é nova, e pode ser nova porque a anterior venceu com uma
+        // alteração esperando o "sim". O `decidir()` não alcança esse caso — o
+        // estado já foi zerado antes do `pausada()` —, então o motivo sai pelo
+        // prefixo. Sem ele o cliente recebe o modelo respondendo do zero a um "sim"
+        // que ele considera a resposta de uma pergunta de meia hora atrás.
+        return $this->perguntar(
+            $registro,
+            $motor,
+            $dados['mensagem'],
+            $registro->pendenciaDescartada ? self::CONFIRMACAO_EXPIRADA : null
+        );
     }
 
     /**
@@ -80,11 +101,15 @@ class ConversaController
         ]);
     }
 
-    private function perguntar(ConversaExterna $registro, Conversa $motor, string $mensagem): JsonResponse
-    {
+    private function perguntar(
+        ConversaExterna $registro,
+        Conversa $motor,
+        string $mensagem,
+        ?string $prefixo = null
+    ): JsonResponse {
         $motor->perguntar($mensagem);
 
-        return $this->rodar($registro, $motor);
+        return $this->rodar($registro, $motor, $prefixo);
     }
 
     /**
@@ -106,8 +131,7 @@ class ConversaController
         $motivo = match (true) {
             // Prazo próprio, mais curto que o da conversa: um "sim" solto tempo
             // depois não pode autorizar alteração que a pessoa já esqueceu.
-            $registro->confirmar_ate === null || $registro->confirmar_ate->isPast() => 'O prazo para confirmar '
-                .'expirou e a alteração foi cancelada. Se ainda quiser, peça de novo.',
+            $registro->confirmar_ate === null || $registro->confirmar_ate->isPast() => self::CONFIRMACAO_EXPIRADA,
 
             // Uma frase de texto não distingue "sim" para qual das duas.
             count($pendentes) > 1 => 'Este canal não confirma mais de uma alteração por vez. As alterações '

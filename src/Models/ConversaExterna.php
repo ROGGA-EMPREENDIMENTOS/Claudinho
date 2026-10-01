@@ -40,6 +40,15 @@ class ConversaExterna extends Model
     ];
 
     /**
+     * A conversa descartada tinha uma alteração esperando confirmação.
+     *
+     * Propriedade de objeto, não coluna: quem lê é o controller, na mesma
+     * requisição que descartou — gravar criaria um campo que alguém teria de
+     * lembrar de zerar depois.
+     */
+    public bool $pendenciaDescartada = false;
+
+    /**
      * Localiza a conversa em andamento do canal, ou começa uma.
      *
      * Vencida não é apagada aqui: é reaproveitada com estado zerado. Isso mantém
@@ -58,9 +67,23 @@ class ConversaExterna extends Model
         ]);
 
         if (! $conversa->exists || $conversa->venceu() || $conversa->user_id !== $usuarioId) {
+            // A pendência morre junto com o histórico, mas não em silêncio: o
+            // `confirmar_ate` é a única pista que sobra de que havia alteração
+            // esperando, e sem ela quem responde "sim" tarde demais recebe o
+            // modelo começando do zero, sem entender por quê.
+            //
+            // Só no vencimento pelo silêncio, e só para a MESMA pessoa: a troca de
+            // usuário também descarta a pendência, e avisar ali contaria a quem
+            // assumiu o número que havia uma alteração esperando a de antes.
+            $conversa->pendenciaDescartada = $conversa->exists
+                && $conversa->venceu()
+                && $conversa->user_id === $usuarioId
+                && $conversa->confirmar_ate !== null;
+
             $conversa->fill([
                 'user_id' => $usuarioId,
                 'estado' => [],
+                'confirmar_ate' => null,
             ]);
         }
 
